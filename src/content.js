@@ -89,6 +89,12 @@
     notify(st);
   }
 
+  // Prowizja biura do pokazania (czerwona flaga) albo null
+  function commissionOf(st) {
+    const cm = st.analysis && st.analysis.commission;
+    return settings.commissionFlag !== false && cm && cm.flag ? cm : null;
+  }
+
   // ---------- Rozpiska kosztów ----------
   function renderBreakdown(st, opts) {
     const a = st.analysis;
@@ -101,6 +107,16 @@
       c.overLimit ? el('span', { class: 'pc-limit-note', text: `Ponad Twój limit ${fmt(c.settings.limit)} o ${fmt(c.overBy)}` })
         : c.settings.limit > 0 ? el('span', { class: 'pc-limit-ok', text: `W limicie ${fmt(c.settings.limit)} (zapas ${fmt(c.settings.limit - c.total)})` }) : null
     ));
+
+    const cm = commissionOf(st);
+    if (cm) {
+      box.append(el('div', { class: 'pc-flag-box' },
+        el('b', { text: cm.conflict ? '🚩 Prowizja? Sprzeczne informacje' : '🚩 Red flag: biuro pobiera prowizję' }),
+        cm.conflict ? ' — ogłoszenie pisze „bez prowizji”, ale w opisie jest też inna informacja. Dopytaj biuro.'
+          : cm.amount ? ' — ' + fmt(cm.amount) + ' jednorazowo' : ' (kwota nie podana)',
+        cm.snippets[0] ? el('span', { class: 'pc-flag-quote', text: '„' + cm.snippets[0] + '”' }) : null
+      ));
+    }
 
     const list = el('div', { class: 'pc-rows' });
     list.append(row({ label: 'Najem (cena z ogłoszenia)', amount: c.price, fixed: true }));
@@ -126,6 +142,7 @@
 
     const info = el('div', { class: 'pc-info' });
     if (a.allInclusive) info.append(el('div', { text: '✔ Ogłoszenie podaje, że opłaty są wliczone w cenę.' }));
+    if (settings.commissionFlag !== false && a.commission && a.commission.noCommission) info.append(el('div', { text: '✔ Bez prowizji dla biura' }));
     const shownCats = new Set(c.rows.map(r => r.cat));
     const extraNoAmount = (a.extraNoAmount || []).filter(x => !shownCats.has(x) && PC.CATEGORIES[x]).map(x => PC.CATEGORIES[x].label.toLowerCase());
     if (extraNoAmount.length) info.append(el('div', { class: 'pc-warn', text: '⚠ Płatne dodatkowo, ale bez kwoty w ogłoszeniu: ' + extraNoAmount.join(', ') }));
@@ -227,6 +244,19 @@
       );
       const extras = c.total - c.price;
       badge.title = `Najem ${fmt(c.price)} + dodatkowo ${fmt(extras)}.` + (c.overLimit ? ` Ponad Twój limit o ${fmt(c.overBy)}.` : '') + ' Kliknij, żeby zobaczyć rozpiskę.';
+      // czerwona flaga: prowizja biura
+      const cm = commissionOf(st);
+      let flag = root.querySelector('.pc-flag');
+      if (cm) {
+        if (!flag) {
+          flag = el('span', { class: 'pc-flag' });
+          flag.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); if (!(openPop && openPop.badge === host)) showPop(host, st); });
+          ['mousedown', 'mouseup', 'pointerdown', 'pointerup'].forEach(ev => flag.addEventListener(ev, e => e.stopPropagation()));
+          root.append(flag);
+        }
+        flag.textContent = '🚩 Prowizja' + (cm.conflict ? '?' : '') + (cm.amount ? ' ' + fmt(cm.amount) : '');
+        flag.title = (cm.conflict ? 'Sprzeczne informacje: ogłoszenie pisze „bez prowizji”, ale też:' : 'Red flag: biuro pobiera prowizję.') + (cm.snippets.length ? '\n„' + cm.snippets.join('”\n„') + '”' : '');
+      } else if (flag) flag.remove();
       if (openPop && openPop.badge === host) renderPop();
     };
     st.listeners.add(update);
@@ -335,7 +365,7 @@
       if (st.status !== 'ok') { host.hidden = true; return; }
       const c = PC.compute(st.analysis, settings, st.overrides);
       host.hidden = false;
-      label.textContent = (c.hasEstimate ? '≈ ' : '') + fmt(c.total);
+      label.textContent = (commissionOf(st) ? '🚩 ' : '') + (c.hasEstimate ? '≈ ' : '') + fmt(c.total);
       label.className = 'pc-pin' + (c.overLimit ? ' pc-over' : '');
       label.title = `4Rent: realnie ${fmt(c.total)}/mies. (najem ${fmt(c.price)} + dodatkowo ${fmt(c.total - c.price)})`;
     };

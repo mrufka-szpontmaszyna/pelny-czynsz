@@ -221,3 +221,24 @@ Deno.test('„czynsz 550 zł + gaz, woda i prąd wg zużycia – w sumie ok 1000
   assertEq(r.extraNoAmount, []);
   assertEq(compute(r).total, 3000 + 1000 + 60);
 });
+
+// Prawdziwe zdania z ogłoszeń Otodom (listopad 2026)
+const pos = ['- biuro nieruchomości pobiera prowizję w wysokości jednomiesięcznego czynszu najmu +23% VAT', '+ Prowizja', '- prowizja dla biura nieruchomości.', '- wynagrodzenie dla biura: 50% wysokości kaucji + 23% VAT (płatne jednorazowo po podpisaniu umowy),', 'A deposit and agency commission are required.', 'Agency commission one time payment fee 1800 zl.', 'As a real estate agency, we charge a commission.', 'Biuro nieruchomości pobiera prowizję.', 'Hamilton May pobiera prowizję za wynajem tej nieruchomości, płatną w momencie podpisania umowy najmu.', 'Jako agencja nieruchomości pobieramy wynagrodzenie w formie prowizji.', 'Jako profesjonalna Agencja Nieruchomości pobieramy prowizję w wysokości 50% w przypadku zawarcia umowy najmu.', 'Obowiązuje jednorazowa prowizja agencyjna płatna po podpisaniu umowy.', 'Opłata prowizyjna 1800 zł.', 'Prowizja do biura', 'Przy podpisaniu umowy najmu występuje prowizja dla biura nieruchomości.', 'Real estate agency fee.', 'SZANOWNI PAŃSTWO BIURO POBIERA WYNAGRODZENIE OD NAJEMCY.', 'There is a one-time agency fee paid after signing the contract with the landlord.', 'Wymagana kaucja oraz prowizja dla Agencji.', 'Za usługę pośrednictwa pobieramy wynagrodzenie w formie prowizji.', 'jednorazowa prowizja dla biura 2000zł;', '– Prowizja za pośrednictwo: 50% miesięcznego czynszu', '• 2 200 zł – prowizja biura nieruchomości.', '• Wynagrodzenie biura nieruchomości', 'Prowizja: oferta biura nieruchomości – wymagana prowizja za pośrednictwo', 'Agency Commission: real estate agency offer – a standard broker commission applies'];
+const neg = ['"0" prowizji-Kawalerka-1600plm-Umeblowana', '2 Pokoje Włochy / BEZ Prowizji !', '2 room apartment – Błonia – no agency commission', '3 bedroom, comfortable with air conditioning, 0% commission', '3 pokojowe, komfortowe z klimatyzacją, 0% prowizji', 'Agreement directly with the owner, with no agency fees, commissions or hidden costs.', 'Apartment in a modern residential development – NO COMMISSION, NO AGENTS, DIRECTLY FROM THE OWNER!', 'BRAK PROWIZJI OD NAJEMCY !!!', 'Bez pośredników i bez prowizji!', 'Bez ukrytych kosztów, bez pośredników i bez prowizji, z umową na jasnych zasadach.', 'Mieszkanie jest ciche, nie słychać hałasu z ulicy, Najem bezpośrednio od właściciela, bez prowizji dla biura nieruchomości.', 'Najem bez pośredników, prowizji i ukrytych kosztów!', 'Najemca nie płaci prowizji.', 'Nie pobieramy prowizji za wynajem!', 'No agency fee for the tenant!', 'No rental commission charged - directly from Owner', 'Norblin | Duże studio | Duże łóżko | 0 prowizji', 'Nowa kawalerka na Żoliborzu |  Blisko metra | 0% prowizja', '• Bez prowizji i opłat agencyjnych', '• Brak prowizji i opłat dla pośredników', '✓ Bez prowizji dla agencji', 'Dołącz do społeczności Vantage Rent i wynajmuj mieszkanie bez prowizji, bez pośredników, bez ukrytych kosztów.', 'Prowizja: 0 zł', 'Prowizję płaci właściciel.', 'Prowizja po stronie wynajmującego.'];
+Deno.test('czerwona flaga: prowizja biura (prawdziwe zdania)', () => {
+  for (const s of pos) assertEq(analyze({ price: 3000, isHtml: false, description: s }).commission.flag, true, s);
+  for (const s of neg) {
+    const c = analyze({ price: 3000, isHtml: false, description: s }).commission;
+    assertEq([c.flag, c.noCommission], [false, true], s);
+  }
+});
+
+Deno.test('prowizja z kwotą', () => {
+  const c = analyze({ price: 2400, isHtml: false, description: 'Kaucja zwrotna 3000zł.\njednorazowa prowizja dla biura 2000zł;' }).commission;
+  assertEq([c.flag, c.amount], [true, 2000]);
+});
+
+Deno.test('sprzeczne info o prowizji (tytuł „Bez prowizji”, opis „pobiera prowizję”)', () => {
+  const c = analyze({ price: 3000, isHtml: false, title: 'PROMOCJA! Nowoczesne mieszkanie z klimatyzacją, Bez Prowizji', description: 'Hamilton May pobiera prowizję za wynajem tej nieruchomości, płatną w momencie podpisania umowy najmu.' }).commission;
+  assertEq([c.flag, c.conflict], [true, true]);
+});

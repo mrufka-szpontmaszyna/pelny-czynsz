@@ -76,7 +76,42 @@
   const EXTRA_RE = /(?<!\p{L})(?:dodatkow|zaliczk|wg\.?|według|zuży|licznik|osobn|oddzieln|płatn|we własnym zakresie|rozlicz|indywidualn|na koszt najemcy)/iu;
   // „+ prąd”, „plus zaliczki za gaz” — plus tuż PRZED nazwą opłaty (nie „ogrzewanie podłogowe + prysznic”)
   const PLUS_BEFORE_RE = /(?:\+|(?<!\p{L})plus)\s*(?:\p{L}+\s+){0,3}$/iu;
-  const COVER_LEAD_RE = /^\s*(?:\/\s*(?:mc|m-c|msc|mies\p{L}*|miesiąc|m)\.?)?\s*(?:miesięcznie)?\s*[,:-]?\s*(?:\(|w tym|obejmując|obejmuj|zawiera|zawierając|za:)/iu;
+  // ---------- Prowizja biura (czerwona flaga) ----------
+  const COMMISSION_RE = /prowizj|prowizyjn|(?:pobier\p{L}*|pobieramy)\s+(?:\p{L}+\s+){0,3}wynagrodzeni|wynagrodzeni\p{L}*\s+(?:dla\s+)?(?:biura|agencji|pośrednik|w formie prowizji)|opłat\p{L}*\s+(?:dla\s+)?(?:biura|agencyjn|pośrednik)|commission|agency\s+fee|broker\s+fee|courtage/iu;
+  const NO_COMMISSION_RE = new RegExp([
+    'bez\\s+(?:[\\p{L},]+\\s+){0,3}(?:prowizj|opłat\\p{L}*\\s+agencyjn|pośrednik)',
+    'brak\\s+(?:\\p{L}+\\s+){0,2}prowizj',
+    'bezprowizyj',
+    '(?:^|[^\\d])0\\s*(?:%|zł|pln)?\\s*["”]?\\s*prowizj',
+    '"0"\\s*prowizj',
+    'prowizj\\p{L}*\\s*[:\\-–]?\\s*(?:0\\s*(?:%|zł|pln)?(?!\\s*\\d)|brak|nie\\s+(?:ma|pobier|będzie|obowiązuje)|zero)',
+    'nie\\s+(?:pobier\\p{L}*|bierze\\p{L}*|płaci\\p{L}*|ma\\s+)\\s*(?:\\p{L}+\\s+){0,2}prowizj',
+    'prowizj\\p{L}*\\s+(?:\\p{L}+\\s+){0,3}(?:płaci|pokrywa|po\\s+stronie|płatn\\p{L}*\\s+przez)\\s+(?:\\p{L}+\\s+)?(?:właściciel|wynajmując)',
+    '(?:właściciel\\p{L}*|wynajmując\\p{L}*)\\s+(?:płaci|pokrywa)\\s+(?:\\p{L}+\\s+)?prowizj',
+    '(?<!\\p{L})no\\s+(?:[\\p{L}-]+\\s+){0,2}(?:commission|fee)',
+    '0\\s*%\\s*commission',
+    'commission[\\s-]*free',
+    'without\\s+(?:\\p{L}+\\s+)?commission',
+    'commission\\s*[:\\-–]?\\s*0(?!\\s*\\d)',
+  ].join('|'), 'iu');
+
+  function detectCommission(text, title, oneTime) {
+    const sentences = (String(text) + '\n' + String(title || '')).split(/\n|(?<=[.!?])\s+|\s[|•]\s/);
+    const positive = [];
+    let negated = false;
+    for (const s of sentences) {
+      if (!COMMISSION_RE.test(s)) continue;
+      if (NO_COMMISSION_RE.test(s)) { negated = true; continue; }
+      positive.push(s.trim().replace(/^[-–•*+✓\s]+/, '').slice(0, 180));
+    }
+    const fee = (oneTime || []).find(o => o.kind === 'onetime' && /prowizj|prowizyjn/i.test(o.snippet) && o.amount > 0);
+    const flag = positive.length > 0 || !!fee;
+    // „PROMOCJA! Bez prowizji” w tytule, a w opisie formułka „biuro pobiera prowizję” — sprzeczne informacje
+    const conflict = flag && negated && !fee;
+    return { flag, conflict, noCommission: !flag && negated, amount: fee ? fee.amount : null, snippets: positive.slice(0, 3) };
+  }
+
+  const COVER_LEAD_RE =/^\s*(?:\/\s*(?:mc|m-c|msc|mies\p{L}*|miesiąc|m)\.?)?\s*(?:miesięcznie)?\s*[,:-]?\s*(?:\(|w tym|obejmując|obejmuj|zawiera|zawierając|za:)/iu;
 
   function htmlToText(html) {
     if (!html) return '';
@@ -505,6 +540,7 @@
       allInclusive,
       covered: [...covered],
       mentionedNoAmount: [...mentioned].filter(c => !items.find(x => x.cat === c) && !covered.has(c)),
+      commission: detectCommission(text, ad.title, oneTime),
       extraNoAmount: [...extra].filter(c => !items.find(x => x.cat === c) && !covered.has(c) && !['admin', 'media', 'parking', 'komorka', 'sprzatanie'].includes(c)),
       unknownAmounts: unknown,
       notes,
@@ -517,6 +553,7 @@
     persons: 1,
     mapPins: true, // pełna kwota na pinezkach mapy Otodom
     limit: 0, // miesięczny limit w zł (0 = wyłączony); powyżej — kolor czerwony
+    commissionFlag: true, // czerwona flaga, gdy biuro pobiera prowizję
     categories: {
       admin:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 600 },
       media:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 200 },
@@ -539,6 +576,7 @@
     if (s.persons > 0) out.persons = +s.persons;
     if (typeof s.mapPins === 'boolean') out.mapPins = s.mapPins;
     if (s.limit >= 0) out.limit = +s.limit;
+    if (typeof s.commissionFlag === 'boolean') out.commissionFlag = s.commissionFlag;
     for (const c of Object.keys(out.categories)) {
       if (s.categories && s.categories[c]) Object.assign(out.categories[c], s.categories[c]);
     }

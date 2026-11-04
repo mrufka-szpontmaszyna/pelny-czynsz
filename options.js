@@ -58,6 +58,13 @@
     save();
   });
 
+  const commissionFlag = document.getElementById('commissionFlag');
+  commissionFlag.checked = settings.commissionFlag !== false;
+  commissionFlag.addEventListener('change', () => {
+    settings.commissionFlag = commissionFlag.checked;
+    save();
+  });
+
   const mapPins = document.getElementById('mapPins');
   mapPins.checked = settings.mapPins !== false;
   mapPins.addEventListener('change', () => {

@@ -40,6 +40,17 @@ globalThis.FourRentCSS = `
 .pc-badge.pc-over { background: #c62828; }
 .pc-badge.pc-over:hover { background: #a01f1f; }
 .pc-pin.pc-over { background: #c62828; }
+/* czerwona flaga: prowizja biura */
+.pc-flag {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 6px; padding: 4px 8px; border-radius: 999px;
+  background: #fdecec; color: #b42318; border: 1px solid #f4b8b4;
+  font: 700 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  white-space: nowrap; cursor: help; vertical-align: baseline;
+}
+.pc-flag-box { margin-bottom: 8px; padding: 7px 10px; border-radius: 8px; background: #fdecec; border: 1px solid #f4b8b4; color: #b42318; font-size: 12.5px; }
+.pc-flag-box b { font-weight: 700; }
+.pc-flag-quote { display: block; margin-top: 3px; color: #7a271a; font-style: italic; font-size: 11.5px; }
 .pc-badge.pc-loading { background: #eef0f3; color: var(--pc-muted); font-weight: 500; box-shadow: none; cursor: progress; }
 .pc-badge.pc-error { background: #f2f4f7; color: var(--pc-muted); font-weight: 500; box-shadow: none; cursor: help; }
 

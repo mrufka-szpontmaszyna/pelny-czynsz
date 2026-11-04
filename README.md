@@ -35,7 +35,7 @@ Kliknij ikonę wtyczki (zielone „4R”) albo link „Ustawienia” w rozpisce.
 - **Doliczaj opcjonalne** — dodatki opisane jako „opcjonalnie” / „możliwość wynajęcia” (domyślnie parking i komórka są wyłączone),
 - **Szacuj, gdy brak kwoty** + kwota szacunku (domyślnie prąd 150 zł i internet 60 zł).
 
-Jest też **limit miesięczny** (np. 4000 zł) — ogłoszenia droższe po zsumowaniu wszystkich opłat mają czerwoną plakietkę zamiast zielonej — oraz liczba osób (dla opłat „za osobę”).
+Jest też **🚩 czerwona flaga przy prowizji biura** (gdy opis mówi, że biuro pobiera prowizję; „🚩 Prowizja?” gdy ogłoszenie jest sprzeczne, np. tytuł „bez prowizji”, a opis „pobieramy prowizję”), **limit miesięczny** (np. 4000 zł) — ogłoszenia droższe po zsumowaniu wszystkich opłat mają czerwoną plakietkę zamiast zielonej — oraz liczba osób (dla opłat „za osobę”).
 
 ## Jak to działa
 
