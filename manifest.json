@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "4Rent — realne koszty mieszkań",
   "short_name": "4Rent",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Na Otodom i OLX liczy realny miesięczny koszt mieszkania: najem + czynsz + opłaty wypisane w opisie.",
   "permissions": ["storage"],
   "host_permissions": ["https://*.otodom.pl/*", "https://*.olx.pl/*"],
@@ -12,6 +12,12 @@
       "matches": ["https://*.otodom.pl/*", "https://*.olx.pl/*"],
       "js": ["src/parser.js", "src/styles.js", "src/content.js"],
       "css": ["src/content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.otodom.pl/*"],
+      "js": ["src/mainworld.js"],
+      "world": "MAIN",
       "run_at": "document_idle"
     }
   ],

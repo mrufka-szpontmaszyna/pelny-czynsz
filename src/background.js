@@ -3,6 +3,8 @@
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6 godzin
 const MAX_PARALLEL = 4;
+const MAX_RENT = 40000; // „najem” powyżej tej kwoty to na pewno sprzedaż
+const NOT_RENTAL = 'NOT_RENTAL';
 const memCache = new Map();
 const inflight = new Map();
 let active = 0;
@@ -70,10 +72,13 @@ async function fetchOtodom(url) {
   const t = ad.target || {};
   const ch = Object.fromEntries((ad.characteristics || []).map(c => [c.key, c.value]));
   const num = v => (v == null || v === '' ? null : parseFloat(v));
+  const price = num(t.Price) ?? num(ch.price);
+  // tylko wynajem — ogłoszenia sprzedaży wtyczka pomija
+  if ((t.OfferType && t.OfferType !== 'wynajem') || price > MAX_RENT) throw new Error(NOT_RENTAL);
   return {
     site: 'otodom',
     title: ad.title,
-    price: num(t.Price) ?? num(ch.price),
+    price,
     adminRent: num(t.Rent) ?? num(ch.rent),
     deposit: num(t.Deposit) ?? num(ch.deposit),
     description: ad.description || '',
@@ -95,6 +100,7 @@ async function fetchOlx(ref) {
   const price = param('price')?.value?.value ?? null;
   const rentRaw = param('rent')?.value?.key ?? param('rent')?.value?.label ?? null;
   const rent = rentRaw != null ? parseFloat(String(rentRaw).replace(/[^\d.,]/g, '').replace(',', '.')) : null;
+  if (price > MAX_RENT) throw new Error(NOT_RENTAL);
   return {
     site: 'olx',
     title: d.title,

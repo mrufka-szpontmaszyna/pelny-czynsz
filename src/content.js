@@ -209,6 +209,7 @@
       if (host.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
       if (st.status === 'loading') return;
+      if (st.status === 'error' && st.error === 'NOT_RENTAL') { host.remove(); st.listeners.delete(update); return; }
       if (st.status === 'error') {
         badge.className = 'pc-badge pc-error';
         badge.textContent = 'pełny koszt: ?';
@@ -293,6 +294,7 @@
       else if (wasConnected) { st.listeners.delete(update); return; }
       const head = el('div', { class: 'pc-panel-head' }, el('span', { class: 'pc-logo', text: '4R' }), el('span', { text: '4Rent' }));
       if (st.status === 'loading') panel.replaceChildren(head, el('div', { class: 'pc-empty', text: 'Liczę pełny koszt…' }));
+      else if (st.status === 'error' && st.error === 'NOT_RENTAL') { host.remove(); st.listeners.delete(update); }
       else if (st.status === 'error') panel.replaceChildren(head, el('div', { class: 'pc-empty', text: 'Nie udało się odczytać ogłoszenia (' + st.error + ').' }));
       else panel.replaceChildren(head, renderBreakdown(st));
     };
@@ -312,18 +314,11 @@
     return null;
   }
 
-  // Otodom: kod „ID4DPNL” w adresie to numer ogłoszenia (68599265) zapisany w base62.
-  // Klucz po numerze pozwala dzielić dane między listą, mapą i stroną ogłoszenia.
-  const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  function b62decode(s) { let n = 0; for (const ch of s) { const i = B62.indexOf(ch); if (i < 0) return null; n = n * 62 + i; } return n; }
-  function b62encode(n) { let s = ''; n = +n; while (n > 0) { s = B62[n % 62] + s; n = Math.floor(n / 62); } return s; }
+  // Otodom: kod „ID4DsjV” z końca adresu jednoznacznie wskazuje ogłoszenie — to nasz klucz,
+  // żeby lista, mapa i strona ogłoszenia dzieliły te same dane (bez względu na resztę adresu).
   function otodomRef(url) {
     const m = url.match(/[-/]ID([0-9a-zA-Z]+)\/?$/);
-    const id = m ? b62decode(m[1]) : null;
-    return id ? { site: 'otodom', id: String(id), url } : { site: 'otodom', url };
-  }
-  function otodomRefFromId(id) {
-    return { site: 'otodom', id: String(id), url: 'https://www.otodom.pl/pl/oferta/ID' + b62encode(id) };
+    return m ? { site: 'otodom', id: 'ID' + m[1], url } : { site: 'otodom', url };
   }
 
   // ---------- Pinezki na mapie ----------
@@ -365,9 +360,12 @@
       document.querySelectorAll('fourrent-pin').forEach(x => x.remove());
       return;
     }
-    document.querySelectorAll('.pin.pin--single[id]').forEach(pin => {
-      if (!/^\d+$/.test(pin.id)) return;
-      const ref = otodomRefFromId(pin.id);
+    // prawdziwy adres ogłoszenia zapisuje na pinezce src/mainworld.js (data-fourrent-slug)
+    document.querySelectorAll('.pin.pin--single[data-fourrent-slug]').forEach(pin => {
+      const slug = pin.getAttribute('data-fourrent-slug');
+      const tx = pin.getAttribute('data-fourrent-tx');
+      if (!slug || (tx && tx !== 'RENT')) return;
+      const ref = otodomRef('https://www.otodom.pl/pl/oferta/' + slug.replace(/^\/+/, ''));
       const existing = pin.querySelector(':scope > fourrent-pin');
       if (existing && existing.dataset.pcKey === keyOf(ref)) return;
       if (existing) existing.remove();
@@ -452,6 +450,6 @@
   });
   new MutationObserver(muts => {
     // własne elementy wtyczki (fourrent-*) nie uruchamiają ponownego skanowania
-    if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !n.tagName.startsWith('FOURRENT-')))) scheduleScan();
-  }).observe(document.documentElement, { childList: true, subtree: true });
+    if (muts.some(m => m.type === 'attributes' || [...m.addedNodes].some(n => n.nodeType === 1 && !n.tagName.startsWith('FOURRENT-')))) scheduleScan();
+  }).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-fourrent-slug'] });
 })();

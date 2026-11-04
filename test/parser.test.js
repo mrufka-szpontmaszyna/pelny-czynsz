@@ -197,3 +197,27 @@ Deno.test('limit cenowy', () => {
   assertEq(compute(r, { limit: 4100 }).overLimit, false);
   assertEq(compute(r).overLimit, false);
 });
+
+Deno.test('„plus opłaty 900 zł plus prąd i gaz 150-200 zł”', () => {
+  const r = analyze({ price: 3000, isHtml: false, description: 'Do dyspozycji najemcy piwnica.\nCena: 3000 zł plus opłaty 900 zł plus prąd i gaz 150-200 ZŁ\nOgrzewanie miejskie !' });
+  assertEq(cats(r), { media: 900, prad: 175 });
+});
+
+Deno.test('„Razem media … 960 zł” to suma wcześniejszych pozycji', () => {
+  const r = analyze({ price: 3000, isHtml: false, description: 'Kwota najmu miesięczna: 3400 zł\nDodatkowe opłaty miesięczne:\n- zaliczka na energię elektryczna 200 zł\n- zaliczka gaz 450 zł\n- zaliczka za wodę i ścieki 150 zł\n- wywóz nieczystości 70 zł\n- internet 90 zł\nRazem media przy 2 osobach zaliczka 960 zł.\nPobierana kaucja zwrotna 4000 zł.' });
+  assertEq(cats(r), { prad: 200, gaz: 450, woda: 150, smieci: 70, internet: 90 });
+  assertEq(compute(r).total, 3000 + 960);
+});
+
+Deno.test('ogólne „media” równe sumie pozycji jest pomijane', () => {
+  const r = analyze({ price: 2500, isHtml: false, description: 'Prąd: 150 zł\nGaz: 50 zł\nMedia: 200 zł' });
+  assertEq(cats(r), { prad: 150, gaz: 50 });
+});
+
+Deno.test('„czynsz 550 zł + gaz, woda i prąd wg zużycia – w sumie ok 1000 zł”', () => {
+  const r = analyze({ price: 3000, adminRent: 600, deposit: 5000, isHtml: false, description: 'Koszty\nNajem - 3000 zł/mies.\nOpłaty - czynsz 550 zł + gaz, woda i prąd wg zużycia – w sumie średnio ok 1000zł/mies.\nKaucja zwrotna - 5000 zł' });
+  assertEq(cats(r), { admin: 550, media: 450 });
+  assertEq(r.items.find(i => i.cat === 'media').covers.sort(), ['gaz', 'prad', 'woda']);
+  assertEq(r.extraNoAmount, []);
+  assertEq(compute(r).total, 3000 + 1000 + 60);
+});

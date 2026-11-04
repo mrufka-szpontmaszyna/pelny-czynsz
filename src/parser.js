@@ -57,12 +57,13 @@
   }
 
   // ---------- Pomocnicze ----------
-  const BEFORE_SEP = /[\n;•|*+]|,(?!\d)|\.\s+(?=[\p{Lu}•\-–])/gu;
-  const SENTENCE_SEP = /[\n;•|*+]|\.\s+(?=[\p{Lu}•\-–])/gu;
-  const AFTER_WEAK_STOP = /[\n;•|*(+]|,\s|\.\s+(?=[\p{Lu}•\-–])|\s[-–—]\s/u;
+  // „plus” działa jak „+” („3000 zł plus opłaty 900 zł plus prąd i gaz 150-200 zł”)
+  const BEFORE_SEP = /[\n;•|*+]|(?<!\p{L})plus(?!\p{L})|,(?!\d)|\.\s+(?=[\p{Lu}•\-–])/gu;
+  const SENTENCE_SEP = /[\n;•|*+]|(?<!\p{L})plus(?!\p{L})|\.\s+(?=[\p{Lu}•\-–])/gu;
+  const AFTER_WEAK_STOP = /[\n;•|*(+]|(?<!\p{L})plus(?!\p{L})|,\s|\.\s+(?=[\p{Lu}•\-–])|\s[-–—]\s/u;
   const AFTER_STRONG_LEAD = /^[ \t]*(?:\/\s*(?:mc|m-c|msc|mies\p{L}*|miesiąc|m)\.?)?[ \t]*(?:miesięcznie|mies\.|netto|brutto)?[ \t]*[-–—:][ \t]*/iu;
   const AFTER_PAREN = /^[ \t]*(?:\/\s*\p{L}+\.?)?[ \t]*\(([^()]{1,50})\)/u;
-  const AFTER_STRONG_STOP = /[\n;•|*+]|,\s|\.\s+(?=[\p{Lu}•\-–])|\s[-–—]\s/u;
+  const AFTER_STRONG_STOP = /[\n;•|*+]|(?<!\p{L})plus(?!\p{L})|,\s|\.\s+(?=[\p{Lu}•\-–])|\s[-–—]\s/u;
   const FILLERS = new Set(['ok', 'około', 'ca', 'średnio', 'aktualnie', 'obecnie', 'wynosi', 'wynoszą', 'to', 'w', 'wysokości', 'kwota', 'kwocie', 'od', 'do', 'max', 'maks', 'mc', 'mies', 'miesięcznie', 'miesiąc', 'jest', 'są', 'koszt', 'ok.', 'cca', 'plus']);
 
   const OPTIONAL_RE = /opcjonaln|możliwoś|mozliwos|na życzenie|do wyboru|jeśli|jeżeli|w razie potrzeby|można (?:wynająć|dokupić|dodatkowo|wykupić)|do dokupienia|do wynajęcia|dla chętnych|nieobowiązk|za dopłatą|istnieje możliwość|ewentualn/iu;
@@ -194,6 +195,7 @@
     const kwIn = (from, to) => keywords.filter(k => k.start >= from && k.end <= to);
 
     const found = [];
+    const subtotals = []; // „w sumie ok 1000 zł”, „Razem media 960 zł” — sumy opłat (bez najmu)
     const unknown = [];
 
     amounts.forEach((am, i) => {
@@ -247,6 +249,12 @@
       const aParen = parenM && !before.length
         ? findKeywords(parenM[1]).map(k => ({ ...k, start: k.start + am.end + parenM[0].indexOf('(') + 1, end: k.end + am.end + parenM[0].indexOf('(') + 1 }))
         : [];
+
+      // „Razem media … 960 zł” — suma częściowa (mniejsza niż najem) wcześniej wypisanych pozycji: pomijamy
+      if (P && amt < P * 0.9 && before.some(k => k.cat === 'total')) {
+        subtotals.push({ amount: amt, start: am.start, snippet: snippetOf(text, am.start, am.end) });
+        return;
+      }
 
       let label = null, how = null;
       for (const minTier of [2, 1]) {
@@ -328,7 +336,8 @@
     const covered = new Set();
     const mentioned = new Set();
     const extra = new Set();
-    const amountSpans = amounts.map(a => [a.start, a.end]);
+    // sumy opłat („w sumie ok 1000 zł”) nie są kwotą dla konkretnej opłaty
+    const amountSpans = amounts.filter(a => !subtotals.some(s => s.start === a.start)).map(a => [a.start, a.end]);
     for (const k of rawKeywords) {
       const cat = k.cat === 'czynsz' ? 'admin' : k.cat;
       if (!CATEGORIES[cat]) continue;
@@ -450,7 +459,39 @@
       if (it.cat === 'media' && items.some(x => x !== it && Math.abs(x.amount - it.amount) <= 1)) items.splice(i, 1);
     }
 
+    // ogólne „media” równe sumie kilku innych pozycji to podsumowanie, nie osobna opłata
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      if (it.cat !== 'media') continue;
+      const others = items.filter(x => x !== it && !x.optional).slice(0, 10);
+      let isSum = false;
+      for (let mask = 1; mask < (1 << others.length) && !isSum; mask++) {
+        let s = 0, n = 0;
+        others.forEach((x, j) => { if (mask & (1 << j)) { s += x.amount; n++; } });
+        if (n >= 2 && Math.abs(s - it.amount) <= Math.max(it.amount * 0.02, 5)) isSum = true;
+      }
+      if (isSum) items.splice(i, 1);
+    }
+
     // pokrycia z pozycji („w tym prąd”) też liczą się jako „w cenie”
+    // Suma opłat podana w ogłoszeniu („czynsz 550 zł + gaz, woda i prąd wg zużycia – w sumie ok 1000 zł”):
+    // jeśli rozpisane kwoty dają mniej, różnica to opłaty bez kwot (gaz, woda, prąd…)
+    if (subtotals.length && !allInclusive) {
+      const S = subtotals[0].amount;
+      const U = items.filter(x => !x.optional).reduce((s, x) => s + x.amount, 0);
+      const pending = [...extra].filter(c => !items.find(x => x.cat === c) && !covered.has(c) && !['admin', 'media', 'parking', 'komorka', 'sprzatanie'].includes(c));
+      if (S - U > 20 && pending.length) {
+        const media = items.find(x => x.cat === 'media');
+        const rest = {
+          cat: 'media', amount: S - U, approx: true, optional: false, source: 'desc', covers: pending,
+          snippet: subtotals[0].snippet, note: `reszta do podanej sumy opłat ${fmt(S)}`,
+        };
+        if (media) Object.assign(media, { amount: media.amount + rest.amount, covers: [...new Set([...(media.covers || []), ...pending])], note: rest.note });
+        else items.push(rest);
+        pending.forEach(c => extra.delete(c));
+      }
+    }
+
     for (const it of items) for (const c of it.covers || []) if (!items.find(x => x.cat === c)) covered.add(c);
     for (const it of items) covered.delete(it.cat);
 
