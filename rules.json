@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "User-Agent", "operation": "set", "value": "4Rent/1.3 (rozszerzenie Chrome; +https://github.com/mrufka-szpontmaszyna/pelny-czynsz)" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "||api.transitous.org/",
+      "resourceTypes": ["xmlhttprequest", "other"]
+    }
+  }
+]

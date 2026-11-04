@@ -554,6 +554,8 @@
     mapPins: true, // pełna kwota na pinezkach mapy Otodom
     limit: 0, // miesięczny limit w zł (0 = wyłączony); powyżej — kolor czerwony
     commissionFlag: true, // czerwona flaga, gdy biuro pobiera prowizję
+    // dojazd komunikacją miejską (planer Transitous); przyjazd na podaną godzinę w dzień roboczy
+    commute: { enabled: true, name: 'DSW Ideis', address: 'Strzegomska 55, Wrocław', lat: 51.1142247, lon: 16.9922026, time: '09:00' },
     categories: {
       admin:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 600 },
       media:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 200 },
@@ -577,6 +579,7 @@
     if (typeof s.mapPins === 'boolean') out.mapPins = s.mapPins;
     if (s.limit >= 0) out.limit = +s.limit;
     if (typeof s.commissionFlag === 'boolean') out.commissionFlag = s.commissionFlag;
+    if (s.commute && typeof s.commute === 'object') Object.assign(out.commute, s.commute);
     for (const c of Object.keys(out.categories)) {
       if (s.categories && s.categories[c]) Object.assign(out.categories[c], s.categories[c]);
     }

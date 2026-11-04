@@ -134,6 +134,19 @@ globalThis.FourRentCSS = `
 .pc-unknown summary { cursor: pointer; color: var(--pc-muted); }
 .pc-unknown-item { padding: 4px 0 4px 10px; border-left: 2px solid var(--pc-line); margin: 4px 0; }
 
+/* dojazd komunikacją */
+.pc-route { margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #eef4ff; border: 1px solid #d3e0fb; font-size: 12.5px; color: #1d2433; }
+.pc-route-head { font-weight: 700; font-size: 12px; color: #1f3d7a; margin-bottom: 4px; }
+.pc-route-main { font-size: 13px; margin-bottom: 4px; }
+.pc-route-ok { color: var(--pc-green-dark); font-weight: 700; }
+.pc-route-warn { color: var(--pc-amber); font-weight: 700; }
+.pc-route-steps { margin: 4px 0; padding-left: 18px; }
+.pc-route-steps li { margin: 2px 0; }
+.pc-route-times, .pc-route-alt { font-size: 12px; color: #475467; margin-top: 2px; }
+.pc-route-note { font-size: 11.5px; color: var(--pc-amber); margin-top: 3px; }
+.pc-route-links { font-size: 11px; color: var(--pc-muted); margin-top: 5px; }
+.pc-route-links a { color: #1f5bd8; text-decoration: none; font-weight: 600; }
+.pc-route-links a:hover { text-decoration: underline; }
 .pc-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 11px; color: var(--pc-muted); }
 .pc-links { display: flex; gap: 10px; white-space: nowrap; }
 .pc-links a { color: var(--pc-green); font-weight: 600; text-decoration: none; cursor: pointer; }

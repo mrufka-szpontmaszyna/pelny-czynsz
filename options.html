@@ -65,6 +65,19 @@
   </section>
 
   <section>
+    <h2>🎓 Dojazd komunikacją</h2>
+    <p class="hint">W rozpisce każdego ogłoszenia wtyczka pokazuje najłatwiejszy dojazd komunikacją miejską do wybranego miejsca: czas, linie (tramwaj / autobus / pociąg), czy potrzebna jest przesiadka i z którego przystanku. Trasy liczy darmowy planer <a href="https://transitous.org/" target="_blank" rel="noopener">Transitous</a> (rozkłady MPK Wrocław, Kolei Dolnośląskich i dane © OpenStreetMap).</p>
+    <label class="row" style="margin-bottom:10px"><input type="checkbox" id="commuteOn"> <span>Pokazuj dojazd</span></label>
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <label>Nazwa celu<br><input type="text" id="commuteName" style="width:180px;padding:5px 7px;border:1px solid #d0d5dd;border-radius:6px;font:inherit"></label>
+      <label>Adres<br><input type="text" id="commuteAddr" style="width:240px;padding:5px 7px;border:1px solid #d0d5dd;border-radius:6px;font:inherit"></label>
+      <label>Przyjazd na<br><input type="time" id="commuteTime" style="padding:4px 6px;border:1px solid #d0d5dd;border-radius:6px;font:inherit"></label>
+      <button id="commuteFind" style="align-self:flex-end">Znajdź adres</button>
+    </div>
+    <p class="hint" id="commuteMsg" style="margin:0"></p>
+  </section>
+
+  <section>
     <h2>🚩 Prowizja biura</h2>
     <p class="hint">Jeśli opis ogłoszenia mówi, że biuro nieruchomości pobiera prowizję, przy plakietce pojawia się czerwona flaga „🚩 Prowizja” (z kwotą, jeśli jest podana). Ogłoszenia „bez prowizji” / „0% prowizji” flagi nie dostają.</p>
     <label class="row"><input type="checkbox" id="commissionFlag"> <span>Pokazuj czerwoną flagę przy prowizji</span></label>

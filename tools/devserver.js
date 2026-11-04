@@ -46,15 +46,19 @@ function harness() {
 }
 
 async function curl(url) {
+  // Transitous wymaga User-Agenta z nazwą aplikacji i kontaktem (to samo robi rules.json we wtyczce)
+  const ua = url.includes('api.transitous.org')
+    ? '4Rent-dev/1.3 (testy; +https://github.com/mrufka-szpontmaszyna/pelny-czynsz)'
+    : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
   const out = await new Deno.Command('curl', {
-    args: ['-sL', '--compressed', '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', '-H', 'Accept-Language: pl-PL,pl;q=0.9', '-w', '\n%{http_code}', url],
+    args: ['-sL', '--compressed', '-A', ua, '-H', 'Accept-Language: pl-PL,pl;q=0.9', '-w', '\n%{http_code}', url],
   }).output();
   const txt = new TextDecoder().decode(out.stdout);
   const i = txt.lastIndexOf('\n');
   return { status: +txt.slice(i + 1) || 502, body: txt.slice(0, i) };
 }
 
-const allowed = u => /^https:\/\/([a-z0-9-]+\.)*(otodom|olx)\.pl\//.test(u);
+const allowed = u => /^https:\/\/([a-z0-9-]+\.)*(otodom|olx)\.pl\//.test(u) || u.startsWith('https://api.transitous.org/api/');
 const headers = { 'access-control-allow-origin': '*', 'cache-control': 'no-store' };
 
 Deno.serve({ port: PORT }, async req => {

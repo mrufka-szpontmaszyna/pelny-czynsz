@@ -58,6 +58,30 @@
     save();
   });
 
+  // dojazd komunikacją
+  const cm = settings.commute;
+  const $ = id => document.getElementById(id);
+  $('commuteOn').checked = cm.enabled !== false;
+  $('commuteName').value = cm.name || '';
+  $('commuteAddr').value = cm.address || '';
+  $('commuteTime').value = cm.time || '09:00';
+  const showDest = () => { $('commuteMsg').textContent = `Cel: ${cm.name || '—'} — ${cm.address || ''} (${(+cm.lat).toFixed(5)}, ${(+cm.lon).toFixed(5)}), przyjazd na ${cm.time} w dzień roboczy.`; };
+  showDest();
+  $('commuteOn').addEventListener('change', () => { cm.enabled = $('commuteOn').checked; save(); });
+  $('commuteName').addEventListener('input', () => { cm.name = $('commuteName').value.trim(); save(); showDest(); });
+  $('commuteTime').addEventListener('input', () => { if ($('commuteTime').value) { cm.time = $('commuteTime').value; save(); showDest(); } });
+  $('commuteFind').addEventListener('click', async () => {
+    const text = $('commuteAddr').value.trim();
+    if (!text) return;
+    $('commuteMsg').textContent = 'Szukam…';
+    const r = await chrome.runtime.sendMessage({ type: 'geocode', text });
+    const hit = r && r.ok && r.results[0];
+    if (!hit) { $('commuteMsg').textContent = 'Nie znaleziono tego adresu. Spróbuj np. „Strzegomska 55, Wrocław”.'; return; }
+    Object.assign(cm, { address: text, lat: hit.lat, lon: hit.lon });
+    save();
+    showDest();
+  });
+
   const commissionFlag = document.getElementById('commissionFlag');
   commissionFlag.checked = settings.commissionFlag !== false;
   commissionFlag.addEventListener('change', () => {

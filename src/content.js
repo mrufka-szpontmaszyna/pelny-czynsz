@@ -95,6 +95,85 @@
     return settings.commissionFlag !== false && cm && cm.flag ? cm : null;
   }
 
+  // ---------- Dojazd komunikacją ----------
+  const MODES = {
+    TRAM: ['🚋', 'tramwaj'], BUS: ['🚌', 'autobus'], COACH: ['🚌', 'autobus'], TROLLEYBUS: ['🚎', 'trolejbus'],
+    SUBWAY: ['🚇', 'metro'], METRO: ['🚇', 'metro'], FERRY: ['⛴', 'prom'],
+  };
+  const modeOf = m => MODES[m] || (/RAIL|TRAIN|SUBURBAN/.test(m) ? ['🚆', 'pociąg'] : ['🚍', 'linia']);
+  const hhmm = iso => new Date(iso).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' });
+  const transfersText = n => n === 0 ? 'bez przesiadek' : n === 1 ? '1 przesiadka' : n < 5 ? `${n} przesiadki` : `${n} przesiadek`;
+  const ridesText = rides => rides.map(r => { const [ic, w] = modeOf(r.mode); return `${ic} ${w} ${r.line}`.trim(); }).join(' → ');
+
+  function commuteDest() {
+    const c = settings.commute;
+    return c && c.enabled !== false && isFinite(+c.lat) && isFinite(+c.lon) ? c : null;
+  }
+
+  function requestRoute(st) {
+    const dest = commuteDest();
+    const loc = st.data && st.data.location;
+    if (!dest || !loc) return;
+    const key = `${dest.lat},${dest.lon},${dest.time}`;
+    if (st.route && st.route.key === key) return;
+    st.route = { key, status: 'loading' };
+    chrome.runtime.sendMessage({ type: 'route', location: loc, dest: { lat: +dest.lat, lon: +dest.lon, time: dest.time || '09:00' } })
+      .then(resp => {
+        if (!st.route || st.route.key !== key) return;
+        st.route = resp && resp.ok ? { key, status: 'ok', data: resp.route } : { key, status: 'error', error: resp ? resp.error : 'brak odpowiedzi' };
+        notify(st);
+      }, err => { st.route = { key, status: 'error', error: String(err) }; notify(st); });
+  }
+
+  function renderRoute(st) {
+    const dest = commuteDest();
+    if (!dest) return null;
+    const box = el('div', { class: 'pc-route' },
+      el('div', { class: 'pc-route-head' }, `🎓 Dojazd do ${dest.name || 'celu'} `, el('span', { class: 'pc-sec-hint', text: `(przyjazd ok. ${dest.time || '09:00'}, dzień roboczy)` })));
+    const loc = st.data && st.data.location;
+    if (!loc) { box.append(el('div', { class: 'pc-empty', text: 'Ogłoszenie nie podaje lokalizacji.' })); return box; }
+    requestRoute(st);
+    const R = st.route;
+    if (!R || R.status === 'loading') { box.append(el('div', { class: 'pc-empty', text: 'Szukam połączenia…' })); return box; }
+    if (R.status === 'error') { box.append(el('div', { class: 'pc-empty', text: 'Nie udało się policzyć trasy (' + R.error + ').' })); return box; }
+    const d = R.data;
+    const b = d.best;
+    if (!b) {
+      box.append(el('div', { class: 'pc-route-main', text: d.walkOnlyMin != null ? `🚶 Pieszo ok. ${d.walkOnlyMin} min — blisko, komunikacja niepotrzebna` : 'Nie znaleziono połączenia komunikacją.' }));
+    } else {
+      box.append(el('div', { class: 'pc-route-main' },
+        el('b', { text: `${b.durationMin} min` }), ' · ',
+        el('span', { class: b.transfers === 0 ? 'pc-route-ok' : 'pc-route-warn', text: b.transfers === 0 ? 'bez przesiadek' : `potrzebna przesiadka (${transfersText(b.transfers)})` }),
+        ' · ', ridesText(b.rides)));
+      const steps = el('ol', { class: 'pc-route-steps' });
+      if (b.walkToFirstMin) steps.append(el('li', { text: `🚶 ${b.walkToFirstMin} min pieszo do przystanku ${b.rides[0] ? b.rides[0].from : ''}` }));
+      b.rides.forEach((r, i) => {
+        const [ic, w] = modeOf(r.mode);
+        steps.append(el('li', {},
+          el('b', { text: `${ic} ${w} ${r.line}` }), r.headsign ? ` (kier. ${r.headsign})` : '',
+          ` — ${hhmm(r.depart)} z przyst. ${r.from} → ${r.to}, ${r.minutes} min`,
+          i < b.rides.length - 1 ? el('span', { class: 'pc-route-warn', text: ' · przesiadka' }) : null));
+      });
+      if (b.walkFromLastMin) steps.append(el('li', { text: `🚶 ${b.walkFromLastMin} min pieszo na miejsce` }));
+      box.append(steps);
+      box.append(el('div', { class: 'pc-route-times', text: `Wyjście z domu ${hhmm(b.depart)} · na miejscu ${hhmm(b.arrive)}` }));
+      if (d.fastest) box.append(el('div', { class: 'pc-route-alt', text: `Szybciej: ${d.fastest.durationMin} min · ${transfersText(d.fastest.transfers)} · ${ridesText(d.fastest.rides)}` }));
+      if (d.walkOnlyMin != null && d.walkOnlyMin <= 25) box.append(el('div', { class: 'pc-route-alt', text: `🚶 Albo pieszo ok. ${d.walkOnlyMin} min` }));
+    }
+    const o = d.origin || {};
+    if (o.precision === 'street') box.append(el('div', { class: 'pc-route-note', text: `Dokładny adres nieznany — liczone od ulicy: ${o.label}.` }));
+    else if (o.precision === 'approx') box.append(el('div', { class: 'pc-route-note', text: o.areaOnly
+      ? 'Lokalizacja przybliżona (ogłoszenie podaje tylko okolicę) — czas może się różnić.'
+      : `Lokalizacja przybliżona (±${o.radiusM} m) — czas może się różnić.` }));
+    const gmaps = `https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lon}&destination=${encodeURIComponent(dest.address || `${dest.lat},${dest.lon}`)}&travelmode=transit`;
+    box.append(el('div', { class: 'pc-route-links' },
+      el('a', { href: gmaps, target: '_blank', rel: 'noopener', onclick: e => e.stopPropagation(), text: 'Google Maps ↗' }),
+      el('span', { text: ' · trasy: ' }),
+      el('a', { href: 'https://transitous.org/sources/', target: '_blank', rel: 'noopener', onclick: e => e.stopPropagation(), text: 'Transitous' }),
+      el('span', { text: ' (dane: MPK, KD, © OpenStreetMap)' })));
+    return box;
+  }
+
   // ---------- Rozpiska kosztów ----------
   function renderBreakdown(st, opts) {
     const a = st.analysis;
@@ -146,7 +225,9 @@
     const shownCats = new Set(c.rows.map(r => r.cat));
     const extraNoAmount = (a.extraNoAmount || []).filter(x => !shownCats.has(x) && PC.CATEGORIES[x]).map(x => PC.CATEGORIES[x].label.toLowerCase());
     if (extraNoAmount.length) info.append(el('div', { class: 'pc-warn', text: '⚠ Płatne dodatkowo, ale bez kwoty w ogłoszeniu: ' + extraNoAmount.join(', ') }));
-    const covered = a.covered.filter(x => PC.CATEGORIES[x]).map(x => PC.CATEGORIES[x].label.toLowerCase());
+    // „w cenie” = wliczone w najem; to, co obejmuje któraś z pozycji (np. „reszta opłat”), widać już przy tej pozycji
+    const inRows = new Set(c.rows.flatMap(r => r.covers || []));
+    const covered = a.covered.filter(x => PC.CATEGORIES[x] && !inRows.has(x)).map(x => PC.CATEGORIES[x].label.toLowerCase());
     if (covered.length && !a.allInclusive) info.append(el('div', { text: '✔ W cenie / wliczone: ' + covered.join(', ') }));
     if (a.statedTotal) {
       const diff = Math.round(c.total - a.statedTotal);
@@ -169,6 +250,9 @@
       a.unknownAmounts.slice(0, 8).forEach(u => det.append(el('div', { class: 'pc-unknown-item' }, el('b', { text: fmt(u.amount) }), ' — ', u.snippet)));
       box.append(det);
     }
+
+    const routeBox = renderRoute(st);
+    if (routeBox) box.append(routeBox);
 
     const foot = el('div', { class: 'pc-foot' },
       el('span', { text: 'Wyliczone automatycznie z opisu — najedź na ⓘ, żeby zobaczyć źródło.' }),
