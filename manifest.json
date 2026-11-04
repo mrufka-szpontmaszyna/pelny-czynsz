@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Pełny czynsz — realne koszty mieszkań",
+  "short_name": "Pełny czynsz",
+  "version": "1.0.0",
+  "description": "Na Otodom i OLX liczy realny miesięczny koszt mieszkania: najem + czynsz + opłaty wypisane w opisie.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://*.otodom.pl/*", "https://*.olx.pl/*"],
+  "background": { "service_worker": "src/background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.otodom.pl/*", "https://*.olx.pl/*"],
+      "js": ["src/parser.js", "src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "action": { "default_title": "Pełny czynsz — ustawienia", "default_icon": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png" } },
+  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <title>Pełny czynsz — ustawienia</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root { --green: #0b7a4b; --green-bg: #e8f5ee; --text: #1d2433; --muted: #667085; --line: #e4e7ec; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f6f7f9; color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+    h1 { display: flex; align-items: center; gap: 10px; font-size: 22px; margin: 0 0 4px; }
+    .logo { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--green); color: #fff; font-size: 14px; font-weight: 800; }
+    .lead { color: var(--muted); margin: 0 0 24px; }
+    section { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 16px; }
+    h2 { font-size: 15px; margin: 0 0 4px; }
+    .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: bottom; }
+    td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
+    tr:last-child td { border-bottom: 0; }
+    td.c, th.c { text-align: center; }
+    input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--green); cursor: pointer; }
+    input[type="number"] { width: 80px; padding: 4px 6px; border: 1px solid #d0d5dd; border-radius: 6px; font: inherit; text-align: right; }
+    input[type="number"]:disabled { background: #f2f4f7; color: #98a2b3; }
+    .row { display: flex; align-items: center; gap: 10px; }
+    button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid #d0d5dd; background: #fff; cursor: pointer; }
+    button:hover { background: #f6f7f9; }
+    .saved { color: var(--green); font-weight: 600; opacity: 0; transition: opacity .2s; }
+    .saved.show { opacity: 1; }
+    .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #f2f4f7; color: var(--muted); margin-left: 6px; }
+    @media (max-width: 640px) { th, td { padding: 6px 4px; } input[type="number"] { width: 64px; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1><span class="logo">zł</span> Pełny czynsz</h1>
+  <p class="lead">Wtyczka czyta opisy ogłoszeń na Otodom i OLX i liczy realny miesięczny koszt mieszkania. Tutaj ustawiasz, co ma się doliczać do sumy. <span class="saved" id="saved">✔ Zapisano</span></p>
+
+  <section>
+    <h2>Co doliczać do ceny</h2>
+    <p class="hint">
+      <b>Obowiązkowe</b> to opłaty, które ogłoszenie podaje jako stałe (np. „Prąd: 200 zł”).
+      <b>Opcjonalne</b> to dodatki opisane jako możliwość albo „opcjonalnie” (np. „możliwość wynajęcia miejsca postojowego za 250 zł”). Parking, komórka i sprzątanie zawsze trafiają do opcjonalnych, chyba że ogłoszenie pisze, że są obowiązkowe.
+      <b>Szacunek</b> wtyczka dolicza, gdy ogłoszenie nie podaje kwoty (np. „prąd wg zużycia”).
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Kategoria</th>
+          <th class="c">Doliczaj<br>obowiązkowe</th>
+          <th class="c">Doliczaj<br>opcjonalne</th>
+          <th class="c">Szacuj, gdy<br>brak kwoty</th>
+          <th class="c">Kwota<br>szacunku</th>
+        </tr>
+      </thead>
+      <tbody id="cats"></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Liczba osób</h2>
+    <p class="hint">Gdy ogłoszenie podaje opłaty „za osobę” (np. „media 70 zł/os.”), kwota zostanie pomnożona przez tę liczbę.</p>
+    <div class="row"><input type="number" id="persons" min="1" max="10" step="1"> <span>os.</span></div>
+  </section>
+
+  <section>
+    <h2>Pamięć podręczna</h2>
+    <p class="hint">Wtyczka zapamiętuje pobrane ogłoszenia na 6 godzin, żeby lista ładowała się szybko. Jeśli ogłoszenie się zmieniło, wyczyść pamięć.</p>
+    <div class="row"><button id="clear">Wyczyść zapamiętane ogłoszenia</button> <span id="clearMsg" class="hint" style="margin:0"></span></div>
+  </section>
+
+  <p class="hint">Na każdym ogłoszeniu możesz też ręcznie odznaczyć albo zaznaczyć pojedyncze pozycje. Te zmiany dotyczą tylko tego jednego ogłoszenia.</p>
+</main>
+<script src="src/parser.js"></script>
+<script src="options.js"></script>
+</body>
+</html>
