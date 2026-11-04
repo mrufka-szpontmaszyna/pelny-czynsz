@@ -6,6 +6,7 @@ Wtyczka do Chrome, która na **Otodom** i **OLX** liczy realny miesięczny koszt
 
 - **Na liście ogłoszeń** przy cenie pojawia się zielona plakietka „Realnie ≈ 3 650 zł/mies.”. Po kliknięciu pokazuje rozpiskę.
 - **Na stronie ogłoszenia** pod ceną pojawia się ramka z pełną rozpiską.
+- **Na mapie Otodom** każda pinezka z ceną dostaje małą zieloną dopiskę z pełną kwotą, a okienko po kliknięciu pinezki — plakietkę z rozpiską. (Dopiski na pinezkach można wyłączyć w ustawieniach.)
 - W rozpisce:
   - **opłaty stałe** z ogłoszenia (czynsz administracyjny, prąd, gaz…),
   - **opcjonalne** dodatki (parking, komórka itp.) w osobnej sekcji — doliczasz je ptaszkiem,

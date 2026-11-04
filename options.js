@@ -51,6 +51,13 @@
     save();
   });
 
+  const mapPins = document.getElementById('mapPins');
+  mapPins.checked = settings.mapPins !== false;
+  mapPins.addEventListener('change', () => {
+    settings.mapPins = mapPins.checked;
+    save();
+  });
+
   let t;
   function save() {
     chrome.storage.sync.set({ settings });

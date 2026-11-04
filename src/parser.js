@@ -464,6 +464,7 @@
   // ---------- Liczenie sumy wg ustawień ----------
   const DEFAULT_SETTINGS = {
     persons: 1,
+    mapPins: true, // pełna kwota na pinezkach mapy Otodom
     categories: {
       admin:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 600 },
       media:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 200 },
@@ -484,6 +485,7 @@
     const out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     if (!s) return out;
     if (s.persons > 0) out.persons = +s.persons;
+    if (typeof s.mapPins === 'boolean') out.mapPins = s.mapPins;
     for (const c of Object.keys(out.categories)) {
       if (s.categories && s.categories[c]) Object.assign(out.categories[c], s.categories[c]);
     }

@@ -287,9 +287,68 @@
     try { u = new URL(href, location.href); } catch (e) { return null; }
     if (u.hostname.includes('otodom.')) {
       if (!/\/oferta\//.test(u.pathname) || /\/hpr\//.test(u.pathname)) return null;
-      return { site: 'otodom', url: u.origin + u.pathname };
+      return otodomRef(u.origin + u.pathname);
     }
     return null;
+  }
+
+  // Otodom: kod „ID4DPNL” w adresie to numer ogłoszenia (68599265) zapisany w base62.
+  // Klucz po numerze pozwala dzielić dane między listą, mapą i stroną ogłoszenia.
+  const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  function b62decode(s) { let n = 0; for (const ch of s) { const i = B62.indexOf(ch); if (i < 0) return null; n = n * 62 + i; } return n; }
+  function b62encode(n) { let s = ''; n = +n; while (n > 0) { s = B62[n % 62] + s; n = Math.floor(n / 62); } return s; }
+  function otodomRef(url) {
+    const m = url.match(/[-/]ID([0-9a-zA-Z]+)\/?$/);
+    const id = m ? b62decode(m[1]) : null;
+    return id ? { site: 'otodom', id: String(id), url } : { site: 'otodom', url };
+  }
+  function otodomRefFromId(id) {
+    return { site: 'otodom', id: String(id), url: 'https://www.otodom.pl/pl/oferta/ID' + b62encode(id) };
+  }
+
+  // ---------- Pinezki na mapie ----------
+  function makePinLabel(ref) {
+    const st = getState(ref);
+    const label = el('span', { class: 'pc-pin', 'data-pc-key': st.key, hidden: true });
+    let wasConnected = false;
+    const update = () => {
+      if (label.isConnected) wasConnected = true;
+      else if (wasConnected) { st.listeners.delete(update); return; }
+      if (st.status !== 'ok') { label.hidden = true; return; }
+      const c = PC.compute(st.analysis, settings, st.overrides);
+      label.hidden = false;
+      label.textContent = (c.hasEstimate ? '≈ ' : '') + fmt(c.total);
+      label.title = `4Rent: realnie ${fmt(c.total)}/mies. (najem ${fmt(c.price)} + dodatkowo ${fmt(c.total - c.price)})`;
+    };
+    st.listeners.add(update);
+    update();
+    return label;
+  }
+
+  function scanOtodomMap() {
+    // okienko po kliknięciu pinezki
+    document.querySelectorAll('[data-cy*="selected-ad-preview"]').forEach(prev => {
+      const a = prev.querySelector('a[href*="/oferta/"]');
+      const ref = a && refFromHref(a.getAttribute('href'));
+      if (!ref) return;
+      const priceRow = prev.querySelector('[data-sentry-element="PriceWrapper"]') ||
+        [...prev.querySelectorAll('div, span')].find(x => /\d\s*zł/.test(x.textContent) && /czynsz/.test(x.textContent) && x.children.length <= 3);
+      if (!priceRow) return;
+      placeBadge(prev, ref, b => priceRow.after(el('div', { class: 'pc-badge-wrap pc-badge-wrap--map' }, b)));
+    });
+    // pinezki z ceną (pojedyncze ogłoszenia, nie grupy)
+    if (settings.mapPins === false) {
+      document.querySelectorAll('.pc-pin').forEach(x => x.remove());
+      return;
+    }
+    document.querySelectorAll('.pin.pin--single[id]').forEach(pin => {
+      if (!/^\d+$/.test(pin.id)) return;
+      const ref = otodomRefFromId(pin.id);
+      const existing = pin.querySelector(':scope > .pc-pin');
+      if (existing && existing.dataset.pcKey === keyOf(ref)) return;
+      if (existing) existing.remove();
+      pin.append(makePinLabel(ref));
+    });
   }
 
   function placeBadge(container, ref, insert) {
@@ -309,10 +368,12 @@
       if (!ref) return;
       placeBadge(priceEl.parentElement, ref, b => priceEl.after(el('div', { class: 'pc-badge-wrap' }, b)));
     });
+    // mapa
+    scanOtodomMap();
     // strona ogłoszenia
     const price = document.querySelector('[data-cy="adPageHeaderPrice"]');
     if (price && /\/oferta\//.test(location.pathname)) {
-      const ref = { site: 'otodom', url: location.origin + location.pathname };
+      const ref = otodomRef(location.origin + location.pathname);
       const anchor = price.parentElement && price.parentElement.parentElement || price.parentElement;
       mountPanel(anchor, ref);
     }
@@ -364,6 +425,7 @@
     if (area === 'sync' && changes.settings) {
       settings = PC.mergeSettings(changes.settings.newValue);
       states.forEach(notify);
+      scheduleScan();
     }
   });
   new MutationObserver(muts => {
