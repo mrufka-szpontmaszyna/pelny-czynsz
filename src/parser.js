@@ -72,6 +72,9 @@
   const APPROX_RE = /ok\.?\s*$|około\s*$|~\s*$|ca\.?\s*$|średnio\s*$|szacunk|mniej więcej|zależ|wg\.?\s*zuży|według\s*zuży|zaliczk|maks|max|do\s*$/iu;
   const COVERED_RE = /w cenie|wliczon|zawart|gratis|bez dodatkow\p{L}* opłat|w czynszu|bezpłatn|darmow|w ramach (?:czynszu|najmu|ceny)/iu;
   const ALL_INCLUSIVE_RE = /z opłatami|ze wszystkimi opłatami|(?:wraz )?z mediami|z czynszem i mediami|wszystkie opłaty (?:są )?(?:w cenie|wliczone)|opłaty (?:są )?(?:w cenie|wliczone)|wliczone (?:wszystkie )?opłaty|all inclusive|łącznie z (?:opłatami|mediami)|media (?:są )?(?:w cenie|wliczone)|w cenie (?:są )?(?:wszystkie )?(?:opłaty|media)|cena zawiera (?:wszystkie )?(?:opłaty|media)/iu;
+  const EXTRA_RE = /(?<!\p{L})(?:dodatkow|zaliczk|wg\.?|według|zuży|licznik|osobn|oddzieln|płatn|we własnym zakresie|rozlicz|indywidualn|na koszt najemcy)/iu;
+  // „+ prąd”, „plus zaliczki za gaz” — plus tuż PRZED nazwą opłaty (nie „ogrzewanie podłogowe + prysznic”)
+  const PLUS_BEFORE_RE = /(?:\+|(?<!\p{L})plus)\s*(?:\p{L}+\s+){0,3}$/iu;
   const COVER_LEAD_RE = /^\s*(?:\/\s*(?:mc|m-c|msc|mies\p{L}*|miesiąc|m)\.?)?\s*(?:miesięcznie)?\s*[,:-]?\s*(?:\(|w tym|obejmując|obejmuj|zawiera|zawierając|za:)/iu;
 
   function htmlToText(html) {
@@ -295,7 +298,8 @@
       if (how === 'before') coverText += text.slice(label.end, am.start);
       else {
         const tail = text.slice(label.end, nextStart);
-        const cut = tail.search(/[\n;•]|\.\s+(?=\p{Lu})/u);
+        // „650 zł czynsz administracyjny + zaliczki za gaz i prąd” — po „+”/„plus”/„dodatkowo” to są osobne opłaty
+        const cut = tail.search(/[\n;•+]|\.\s+(?=\p{Lu})|(?<!\p{L})(?:plus|dodatkow|osobn|oddzieln|płatn|poza)/iu);
         coverText += cut === -1 ? tail : tail.slice(0, cut);
       }
       const afterAmount = text.slice(am.end, Math.min(text.length, am.end + 160));
@@ -323,6 +327,7 @@
     // 2) Wzmianki bez kwot: „komórka lokatorska w cenie”, „prąd wg zużycia”
     const covered = new Set();
     const mentioned = new Set();
+    const extra = new Set();
     const amountSpans = amounts.map(a => [a.start, a.end]);
     for (const k of rawKeywords) {
       const cat = k.cat === 'czynsz' ? 'admin' : k.cat;
@@ -333,7 +338,11 @@
       const hasAmount = amountSpans.some(([s, e]) => s >= segStart && e <= segEnd);
       const seg = text.slice(k.end, Math.min(segEnd, k.end + 45));
       if (!hasAmount && COVERED_RE.test(seg)) covered.add(cat);
-      else mentioned.add(cat);
+      else {
+        mentioned.add(cat);
+        // „+ zaliczki za gaz i prąd”, „prąd wg zużycia” — płatne dodatkowo, ale bez kwoty
+        if (!hasAmount && (EXTRA_RE.test(text.slice(segStart, segEnd)) || PLUS_BEFORE_RE.test(text.slice(Math.max(0, k.start - 30), k.start)))) extra.add(cat);
+      }
     }
     const allMatch = text.match(ALL_INCLUSIVE_RE);
     const allInclusive = !!allMatch;
@@ -455,6 +464,7 @@
       allInclusive,
       covered: [...covered],
       mentionedNoAmount: [...mentioned].filter(c => !items.find(x => x.cat === c) && !covered.has(c)),
+      extraNoAmount: [...extra].filter(c => !items.find(x => x.cat === c) && !covered.has(c) && !['admin', 'media', 'parking', 'komorka', 'sprzatanie'].includes(c)),
       unknownAmounts: unknown,
       notes,
       text,
@@ -465,6 +475,7 @@
   const DEFAULT_SETTINGS = {
     persons: 1,
     mapPins: true, // pełna kwota na pinezkach mapy Otodom
+    limit: 0, // miesięczny limit w zł (0 = wyłączony); powyżej — kolor czerwony
     categories: {
       admin:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 600 },
       media:         { mandatory: true, optional: true,  estimate: false, estimateAmount: 200 },
@@ -486,6 +497,7 @@
     if (!s) return out;
     if (s.persons > 0) out.persons = +s.persons;
     if (typeof s.mapPins === 'boolean') out.mapPins = s.mapPins;
+    if (s.limit >= 0) out.limit = +s.limit;
     for (const c of Object.keys(out.categories)) {
       if (s.categories && s.categories[c]) Object.assign(out.categories[c], s.categories[c]);
     }
@@ -545,7 +557,8 @@
     const deposit = result.oneTime.filter(o => o.kind === 'deposit').reduce((s, o) => s + o.amount, 0);
     const startCost = result.oneTime.reduce((s, o) => s + o.amount, 0) + total;
 
-    return { rows, price, extras, total, hasEstimate, deposit, startCost, settings };
+    const overLimit = settings.limit > 0 && total > settings.limit;
+    return { rows, price, extras, total, hasEstimate, deposit, startCost, settings, overLimit, overBy: overLimit ? total - settings.limit : 0 };
   }
 
   function fmt(n) {

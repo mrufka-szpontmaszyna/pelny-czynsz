@@ -51,6 +51,13 @@
     save();
   });
 
+  const limit = document.getElementById('limit');
+  limit.value = settings.limit || 0;
+  limit.addEventListener('input', () => {
+    settings.limit = Math.max(0, Math.round(+limit.value || 0));
+    save();
+  });
+
   const mapPins = document.getElementById('mapPins');
   mapPins.checked = settings.mapPins !== false;
   mapPins.addEventListener('change', () => {

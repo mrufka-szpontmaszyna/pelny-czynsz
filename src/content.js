@@ -27,6 +27,15 @@
   }
   const fmt = PC.fmt;
 
+  // Element wtyczki z własnym Shadow DOM — style strony go nie dotykają
+  function shadowHost(tag, attrs) {
+    const host = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) host.setAttribute(k, v);
+    const root = host.attachShadow({ mode: 'open' });
+    root.append(el('style', { text: globalThis.FourRentCSS || '' }));
+    return { host, root };
+  }
+
   // ---------- Stan i dane ----------
   function cleanUrl(u) {
     try { const x = new URL(u, location.href); return x.origin + x.pathname; } catch (e) { return u; }
@@ -86,9 +95,11 @@
     const c = PC.compute(a, settings, st.overrides);
     const box = el('div', { class: 'pc-breakdown' });
 
-    box.append(el('div', { class: 'pc-total' },
+    box.append(el('div', { class: 'pc-total' + (c.overLimit ? ' pc-over' : '') },
       el('span', { class: 'pc-total-label', text: 'Realnie miesięcznie' }),
-      el('strong', { class: 'pc-total-value', text: (c.hasEstimate ? '≈ ' : '') + fmt(c.total) })
+      el('strong', { class: 'pc-total-value', text: (c.hasEstimate ? '≈ ' : '') + fmt(c.total) }),
+      c.overLimit ? el('span', { class: 'pc-limit-note', text: `Ponad Twój limit ${fmt(c.settings.limit)} o ${fmt(c.overBy)}` })
+        : c.settings.limit > 0 ? el('span', { class: 'pc-limit-ok', text: `W limicie ${fmt(c.settings.limit)} (zapas ${fmt(c.settings.limit - c.total)})` }) : null
     ));
 
     const list = el('div', { class: 'pc-rows' });
@@ -115,6 +126,9 @@
 
     const info = el('div', { class: 'pc-info' });
     if (a.allInclusive) info.append(el('div', { text: '✔ Ogłoszenie podaje, że opłaty są wliczone w cenę.' }));
+    const shownCats = new Set(c.rows.map(r => r.cat));
+    const extraNoAmount = (a.extraNoAmount || []).filter(x => !shownCats.has(x) && PC.CATEGORIES[x]).map(x => PC.CATEGORIES[x].label.toLowerCase());
+    if (extraNoAmount.length) info.append(el('div', { class: 'pc-warn', text: '⚠ Płatne dodatkowo, ale bez kwoty w ogłoszeniu: ' + extraNoAmount.join(', ') }));
     const covered = a.covered.filter(x => PC.CATEGORIES[x]).map(x => PC.CATEGORIES[x].label.toLowerCase());
     if (covered.length && !a.allInclusive) info.append(el('div', { text: '✔ W cenie / wliczone: ' + covered.join(', ') }));
     if (a.statedTotal) {
@@ -186,11 +200,13 @@
   // ---------- Plakietka na liście ----------
   function makeBadge(ref) {
     const st = getState(ref);
-    const badge = el('button', { type: 'button', class: 'pc-badge pc-loading', 'data-pc-key': st.key, text: 'liczę pełny koszt…' });
+    const { host, root } = shadowHost('fourrent-badge', { 'data-pc-key': st.key });
+    const badge = el('button', { type: 'button', class: 'pc-badge pc-loading', text: 'liczę pełny koszt…' });
+    root.append(badge);
     let wasConnected = false;
     const update = () => {
       // odpinamy się dopiero, gdy plakietka była na stronie i z niej zniknęła
-      if (badge.isConnected) wasConnected = true;
+      if (host.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
       if (st.status === 'loading') return;
       if (st.status === 'error') {
@@ -200,7 +216,7 @@
         return;
       }
       const c = PC.compute(st.analysis, settings, st.overrides);
-      badge.className = 'pc-badge' + (c.hasEstimate ? ' pc-has-est' : '');
+      badge.className = 'pc-badge' + (c.hasEstimate ? ' pc-has-est' : '') + (c.overLimit ? ' pc-over' : '');
       badge.textContent = '';
       badge.append(
         el('span', { class: 'pc-badge-label', text: 'Realnie' }),
@@ -209,36 +225,38 @@
         el('span', { class: 'pc-badge-caret', text: '▾' })
       );
       const extras = c.total - c.price;
-      badge.title = `Najem ${fmt(c.price)} + dodatkowo ${fmt(extras)}. Kliknij, żeby zobaczyć rozpiskę.`;
-      if (openPop && openPop.badge === badge) renderPop();
+      badge.title = `Najem ${fmt(c.price)} + dodatkowo ${fmt(extras)}.` + (c.overLimit ? ` Ponad Twój limit o ${fmt(c.overBy)}.` : '') + ' Kliknij, żeby zobaczyć rozpiskę.';
+      if (openPop && openPop.badge === host) renderPop();
     };
     st.listeners.add(update);
     update();
     badge.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      if (openPop && openPop.badge === badge) closePop();
-      else if (st.status === 'ok') showPop(badge, st);
+      if (openPop && openPop.badge === host) closePop();
+      else if (st.status === 'ok') showPop(host, st);
     });
     // nie pozwól kartom ogłoszeń przechwycić kliknięcia (nawigacja)
     ['mousedown', 'mouseup', 'pointerdown', 'pointerup'].forEach(ev => badge.addEventListener(ev, e => e.stopPropagation()));
-    return badge;
+    return host;
   }
 
   // ---------- Okienko z rozpiską ----------
   let openPop = null;
   function showPop(badge, st) {
     closePop();
-    const pop = el('div', { class: 'pc-pop' });
-    ['click', 'mousedown', 'mouseup', 'pointerdown'].forEach(ev => pop.addEventListener(ev, e => e.stopPropagation()));
-    document.body.append(pop);
-    openPop = { pop, badge, st };
+    const { host, root } = shadowHost('fourrent-pop');
+    const inner = el('div', { class: 'pc-pop' });
+    root.append(inner);
+    ['click', 'mousedown', 'mouseup', 'pointerdown'].forEach(ev => host.addEventListener(ev, e => e.stopPropagation()));
+    document.body.append(host);
+    openPop = { pop: host, inner, badge, st };
     renderPop();
   }
   function renderPop() {
     if (!openPop) return;
-    const { pop, badge, st } = openPop;
-    pop.replaceChildren(
+    const { pop, inner, badge, st } = openPop;
+    inner.replaceChildren(
       el('div', { class: 'pc-pop-head' },
         el('span', { class: 'pc-pop-title', text: st.data && st.data.title ? st.data.title : 'Rozpiska kosztów' }),
         el('button', { type: 'button', class: 'pc-close', title: 'Zamknij', text: '×', onclick: closePop })
@@ -266,10 +284,12 @@
   // ---------- Ramka na stronie ogłoszenia ----------
   function makePanel(ref) {
     const st = getState(ref);
-    const panel = el('div', { class: 'pc-panel', 'data-pc-key': st.key });
+    const { host, root } = shadowHost('fourrent-panel', { 'data-pc-key': st.key });
+    const panel = el('div', { class: 'pc-panel' });
+    root.append(panel);
     let wasConnected = false;
     const update = () => {
-      if (panel.isConnected) wasConnected = true;
+      if (host.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
       const head = el('div', { class: 'pc-panel-head' }, el('span', { class: 'pc-logo', text: '4R' }), el('span', { text: '4Rent' }));
       if (st.status === 'loading') panel.replaceChildren(head, el('div', { class: 'pc-empty', text: 'Liczę pełny koszt…' }));
@@ -278,7 +298,7 @@
     };
     st.listeners.add(update);
     update();
-    return panel;
+    return host;
   }
 
   // ---------- Wyszukiwanie miejsc na stronie ----------
@@ -309,20 +329,24 @@
   // ---------- Pinezki na mapie ----------
   function makePinLabel(ref) {
     const st = getState(ref);
-    const label = el('span', { class: 'pc-pin', 'data-pc-key': st.key, hidden: true });
+    const { host, root } = shadowHost('fourrent-pin', { 'data-pc-key': st.key });
+    host.hidden = true;
+    const label = el('span', { class: 'pc-pin' });
+    root.append(label);
     let wasConnected = false;
     const update = () => {
-      if (label.isConnected) wasConnected = true;
+      if (host.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
-      if (st.status !== 'ok') { label.hidden = true; return; }
+      if (st.status !== 'ok') { host.hidden = true; return; }
       const c = PC.compute(st.analysis, settings, st.overrides);
-      label.hidden = false;
+      host.hidden = false;
       label.textContent = (c.hasEstimate ? '≈ ' : '') + fmt(c.total);
+      label.className = 'pc-pin' + (c.overLimit ? ' pc-over' : '');
       label.title = `4Rent: realnie ${fmt(c.total)}/mies. (najem ${fmt(c.price)} + dodatkowo ${fmt(c.total - c.price)})`;
     };
     st.listeners.add(update);
     update();
-    return label;
+    return host;
   }
 
   function scanOtodomMap() {
@@ -334,17 +358,17 @@
       const priceRow = prev.querySelector('[data-sentry-element="PriceWrapper"]') ||
         [...prev.querySelectorAll('div, span')].find(x => /\d\s*zł/.test(x.textContent) && /czynsz/.test(x.textContent) && x.children.length <= 3);
       if (!priceRow) return;
-      placeBadge(prev, ref, b => priceRow.after(el('div', { class: 'pc-badge-wrap pc-badge-wrap--map' }, b)));
+      placeBadge(prev, ref, b => priceRow.after(b));
     });
     // pinezki z ceną (pojedyncze ogłoszenia, nie grupy)
     if (settings.mapPins === false) {
-      document.querySelectorAll('.pc-pin').forEach(x => x.remove());
+      document.querySelectorAll('fourrent-pin').forEach(x => x.remove());
       return;
     }
     document.querySelectorAll('.pin.pin--single[id]').forEach(pin => {
       if (!/^\d+$/.test(pin.id)) return;
       const ref = otodomRefFromId(pin.id);
-      const existing = pin.querySelector(':scope > .pc-pin');
+      const existing = pin.querySelector(':scope > fourrent-pin');
       if (existing && existing.dataset.pcKey === keyOf(ref)) return;
       if (existing) existing.remove();
       pin.append(makePinLabel(ref));
@@ -353,7 +377,7 @@
 
   function placeBadge(container, ref, insert) {
     const key = keyOf(ref);
-    const existing = container.querySelector(':scope .pc-badge');
+    const existing = container.querySelector(':scope fourrent-badge');
     if (existing && existing.dataset.pcKey === key) return;
     if (existing) existing.remove();
     insert(makeBadge(ref));
@@ -366,7 +390,7 @@
       const a = card && card.querySelector('a[href*="/oferta/"]');
       const ref = a && refFromHref(a.getAttribute('href'));
       if (!ref) return;
-      placeBadge(priceEl.parentElement, ref, b => priceEl.after(el('div', { class: 'pc-badge-wrap' }, b)));
+      placeBadge(priceEl.parentElement, ref, b => priceEl.after(b));
     });
     // mapa
     scanOtodomMap();
@@ -389,7 +413,7 @@
         if (!/^\d+$/.test(card.id || '')) return;
         ref = { site: 'olx', id: card.id };
       }
-      placeBadge(priceEl.parentElement, ref, b => priceEl.after(el('div', { class: 'pc-badge-wrap' }, b)));
+      placeBadge(priceEl.parentElement, ref, b => priceEl.after(b));
     });
     const pc = document.querySelector('[data-testid="ad-price-container"]');
     if (pc && /\/d\/oferta\//.test(location.pathname)) {
@@ -399,12 +423,10 @@
 
   function mountPanel(anchor, ref) {
     const key = keyOf(ref);
-    const existing = document.querySelector('.pc-panel');
+    const existing = document.querySelector('fourrent-panel');
     if (existing && existing.dataset.pcKey === key && existing.isConnected) return;
     if (existing) existing.remove();
-    const panel = makePanel(ref);
-    panel.dataset.mounted = '1';
-    anchor.after(panel);
+    anchor.after(makePanel(ref));
   }
 
   let scanTimer = null;
@@ -429,6 +451,7 @@
     }
   });
   new MutationObserver(muts => {
-    if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !(n.className && String(n.className).startsWith('pc-'))))) scheduleScan();
+    // własne elementy wtyczki (fourrent-*) nie uruchamiają ponownego skanowania
+    if (muts.some(m => [...m.addedNodes].some(n => n.nodeType === 1 && !n.tagName.startsWith('FOURRENT-')))) scheduleScan();
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();

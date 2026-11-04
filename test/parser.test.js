@@ -173,3 +173,27 @@ Deno.test('„z mediami (prąd gaz woda) i internetem” = wszystko w cenie', ()
   assertEq(r.covered.includes('internet'), true);
   assertEq(compute(r).total, 1100);
 });
+
+Deno.test('„+ zaliczki za gaz i prąd” to opłaty dodatkowe, nie wliczone', () => {
+  const r = analyze({ price: 3000, adminRent: 650, deposit: 5000, isHtml: false, description: 'OPŁATY:\nKwota Najmu: 3000 zł plus ok. 650 zł czynsz administracyjny + zaliczki za gaz i prąd .' });
+  assertEq(cats(r), { admin: 650 });
+  assertEq(r.items[0].covers, []);
+  assertEq(r.covered, []);
+  assertEq(r.extraNoAmount.sort(), ['gaz', 'prad']);
+  const c = compute(r);
+  assertEq(c.rows.find(x => x.cat === 'prad').reason, 'w ogłoszeniu bez kwoty');
+  assertEq(c.total, 3000 + 650 + 150 + 60);
+});
+
+Deno.test('„ogrzewanie podłogowe + prysznic” nie jest opłatą dodatkową', () => {
+  const r = analyze({ price: 4000, adminRent: 1100, isHtml: false, description: 'W łazience ogrzewanie podłogowe + prysznic typu walk-in. Ogrzewanie jest miejskie. Czynsz 4000zł + media według zużycia. Dodatkowo prąd.' });
+  assertEq(r.extraNoAmount, ['prad']);
+});
+
+Deno.test('limit cenowy', () => {
+  const r = analyze({ price: 3000, adminRent: 800, isHtml: false, description: 'Prąd: 200 zł' });
+  assertEq(compute(r, { limit: 4000 }).overLimit, true);
+  assertEq(compute(r, { limit: 4000 }).overBy, 60);
+  assertEq(compute(r, { limit: 4100 }).overLimit, false);
+  assertEq(compute(r).overLimit, false);
+});

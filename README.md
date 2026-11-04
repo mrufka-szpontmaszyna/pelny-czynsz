@@ -35,7 +35,7 @@ Kliknij ikonę wtyczki (zielone „4R”) albo link „Ustawienia” w rozpisce.
 - **Doliczaj opcjonalne** — dodatki opisane jako „opcjonalnie” / „możliwość wynajęcia” (domyślnie parking i komórka są wyłączone),
 - **Szacuj, gdy brak kwoty** + kwota szacunku (domyślnie prąd 150 zł i internet 60 zł).
 
-Jest też liczba osób (dla opłat „za osobę”).
+Jest też **limit miesięczny** (np. 4000 zł) — ogłoszenia droższe po zsumowaniu wszystkich opłat mają czerwoną plakietkę zamiast zielonej — oraz liczba osób (dla opłat „za osobę”).
 
 ## Jak to działa
 
@@ -48,7 +48,8 @@ Analiza tekstu to heurystyka — przy nietypowych opisach może się pomylić. D
 ## Dla dewelopera
 
 - `src/parser.js` — analiza opisu i liczenie sumy (czysty JS),
-- `src/content.js` + `src/content.css` — plakietki, okienko, ramka,
+- `src/content.js` — plakietki, okienko, ramka, mapa (w Shadow DOM, odporne na style strony),
+- `src/styles.js` — style interfejsu, `src/content.css` — tylko opakowania elementów,
 - `src/background.js` — pobieranie danych ogłoszeń,
 - `options.html` / `options.js` — ustawienia,
 - `test/parser.test.js` — testy: `deno test test/`,
