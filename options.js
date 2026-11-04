@@ -1,4 +1,4 @@
-// Pełny czynsz — strona ustawień
+// 4Rent — strona ustawień
 (async function () {
   'use strict';
   const PC = globalThis.PelnyCzynsz;

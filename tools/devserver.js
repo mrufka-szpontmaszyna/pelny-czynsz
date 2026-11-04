@@ -86,5 +86,5 @@ Deno.serve({ port: PORT }, async req => {
     html = html.includes('</body>') ? html.replace('</body>', inject + '</body>') : html + inject;
     return new Response(html, { headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } });
   }
-  return new Response('<!doctype html><meta charset="utf-8"><p>Pełny czynsz — serwer testowy. Użyj /page?url=…</p>', { headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } });
+  return new Response('<!doctype html><meta charset="utf-8"><p>4Rent — serwer testowy. Użyj /page?url=…</p>', { headers: { ...headers, 'content-type': 'text/html; charset=utf-8' } });
 });

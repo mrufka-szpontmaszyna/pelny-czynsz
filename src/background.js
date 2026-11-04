@@ -1,4 +1,4 @@
-// Pełny czynsz — pobieranie danych ogłoszeń (w tle, z pamięcią podręczną).
+// 4Rent — pobieranie danych ogłoszeń (w tle, z pamięcią podręczną).
 'use strict';
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6 godzin

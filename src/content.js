@@ -1,4 +1,4 @@
-// Pełny czynsz — plakietki na listach i ramka na stronie ogłoszenia.
+// 4Rent — plakietki na listach i ramka na stronie ogłoszenia.
 (function () {
   'use strict';
   const PC = globalThis.PelnyCzynsz;
@@ -65,7 +65,7 @@
 
   function notify(st) {
     for (const fn of [...st.listeners]) {
-      try { fn(st); } catch (e) { console.warn('[Pełny czynsz]', e); }
+      try { fn(st); } catch (e) { console.warn('[4Rent]', e); }
     }
   }
 
@@ -271,7 +271,7 @@
     const update = () => {
       if (panel.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
-      const head = el('div', { class: 'pc-panel-head' }, el('span', { class: 'pc-logo', text: 'zł' }), el('span', { text: 'Pełny czynsz' }));
+      const head = el('div', { class: 'pc-panel-head' }, el('span', { class: 'pc-logo', text: '4R' }), el('span', { text: '4Rent' }));
       if (st.status === 'loading') panel.replaceChildren(head, el('div', { class: 'pc-empty', text: 'Liczę pełny koszt…' }));
       else if (st.status === 'error') panel.replaceChildren(head, el('div', { class: 'pc-empty', text: 'Nie udało się odczytać ogłoszenia (' + st.error + ').' }));
       else panel.replaceChildren(head, renderBreakdown(st));
@@ -351,7 +351,7 @@
     if (scanTimer) return;
     scanTimer = setTimeout(() => {
       scanTimer = null;
-      try { SITE === 'otodom' ? scanOtodom() : scanOlx(); } catch (e) { console.warn('[Pełny czynsz]', e); }
+      try { SITE === 'otodom' ? scanOtodom() : scanOlx(); } catch (e) { console.warn('[4Rent]', e); }
     }, 250);
   }
 

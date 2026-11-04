@@ -1,4 +1,4 @@
-// Pełny czynsz — analiza opisu ogłoszenia.
+// 4Rent — analiza opisu ogłoszenia.
 // Czysty JavaScript bez zależności: działa w content scripcie i w testach (Deno).
 (function (root) {
   'use strict';

@@ -1,4 +1,4 @@
-# Pełny czynsz
+# 4Rent
 
 Wtyczka do Chrome, która na **Otodom** i **OLX** liczy realny miesięczny koszt mieszkania: najem + czynsz administracyjny + wszystkie opłaty wypisane w opisie (prąd, gaz, parking, internet…).
 
@@ -28,7 +28,7 @@ Po zmianach w kodzie kliknij ikonę odświeżania przy wtyczce w `chrome://exten
 
 ## Ustawienia
 
-Kliknij ikonę wtyczki (zielone „zł”) albo link „Ustawienia” w rozpisce. Dla każdej kategorii ustawiasz:
+Kliknij ikonę wtyczki (zielone „4R”) albo link „Ustawienia” w rozpisce. Dla każdej kategorii ustawiasz:
 
 - **Doliczaj obowiązkowe** — opłaty podane jako stałe,
 - **Doliczaj opcjonalne** — dodatki opisane jako „opcjonalnie” / „możliwość wynajęcia” (domyślnie parking i komórka są wyłączone),
