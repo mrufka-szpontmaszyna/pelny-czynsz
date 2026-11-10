@@ -1,5 +1,7 @@
 // 4Rent — pobieranie danych ogłoszeń (w tle, z pamięcią podręczną).
 'use strict';
+importScripts('olx.js'); // FourRentOlx.fromHtml — odczyt ogłoszenia OLX z HTML
+const FETCH_IN_PAGE = 'FETCH_IN_PAGE';
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6 godzin
 const MAX_PARALLEL = 4;
@@ -96,47 +98,20 @@ async function fetchOtodom(url) {
   };
 }
 
+// OLX: dane ze strony ogłoszenia (API /api/v1/offers zwraca 403 od listopada 2026).
+// Jeśli OLX nie odda strony wtyczce w tle, content script pobierze ją jak zwykła karta (FETCH_IN_PAGE).
 async function fetchOlx(ref) {
-  let id = ref.id;
-  if (!id) {
-    const html = await fetchText(cleanUrl(ref.url));
-    const m = html.match(/"sku"\s*:\s*"(\d+)"/) || html.match(/ID:\s*(?:<[^>]*>\s*)*(\d{6,})/);
-    if (!m) throw new Error('Nie znaleziono numeru ogłoszenia');
-    id = m[1];
+  if (!ref.url) throw new Error(FETCH_IN_PAGE);
+  let html;
+  try {
+    html = await fetchText(cleanUrl(ref.url));
+  } catch (e) {
+    throw new Error(FETCH_IN_PAGE);
   }
-  const r = await fetch('https://www.olx.pl/api/v1/offers/' + id + '/', { credentials: 'include' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const d = (await r.json()).data;
-  const param = k => (d.params || []).find(p => p.key === k);
-  const price = param('price')?.value?.value ?? null;
-  const rentRaw = param('rent')?.value?.key ?? param('rent')?.value?.label ?? null;
-  const rent = rentRaw != null ? parseFloat(String(rentRaw).replace(/[^\d.,]/g, '').replace(',', '.')) : null;
-  if (price > MAX_RENT) throw new Error(NOT_RENTAL);
-  const map = d.map || {};
-  return {
-    site: 'olx',
-    title: d.title,
-    price,
-    adminRent: isFinite(rent) ? rent : null,
-    deposit: null,
-    description: d.description || '',
-    // OLX zwykle podaje tylko okolicę (radius w km); ulicę próbujemy wyczytać z tytułu/opisu
-    location: map.lat ? {
-      lat: map.lat, lon: map.lon,
-      radiusM: map.show_detailed ? 0 : 1500, // OLX bez dokładnego adresu: tylko okolica
-      areaOnly: !map.show_detailed,
-      street: streetFromText(d.title) || streetFromText(d.description),
-      city: (d.location && d.location.city && d.location.city.name) || null,
-    } : null,
-  };
-}
-
-// „ul. Śliczna 16”, „ulica Kunickiego” → „Śliczna 16”
-function streetFromText(s) {
-  if (!s) return null;
-  const t = String(s).replace(/<[^>]+>/g, ' ');
-  const m = t.match(/(?<!\p{L})(?:ul\.|ulica|ulicy|al\.|aleja|alei|pl\.|plac|placu|os\.|osiedle)\s*((?:\p{Lu}[\p{L}.-]*\s*){1,3})(\d+[a-zA-Z]?)?/u);
-  return m ? (m[1].trim() + (m[2] ? ' ' + m[2] : '')).trim() : null;
+  const data = FourRentOlx.fromHtml(html);
+  if (!data) throw new Error(FETCH_IN_PAGE);
+  if (data.price > MAX_RENT) throw new Error(NOT_RENTAL);
+  return data;
 }
 
 // ---------- Dojazd komunikacją (Transitous / MOTIS) ----------
@@ -272,6 +247,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       err => sendResponse({ ok: false, error: String(err && err.message || err) })
     );
     return true;
+  }
+  if (msg && msg.type === 'putAd' && msg.ref && msg.data) {
+    // dane OLX pobrane przez content script — zapamiętujemy jak własne
+    const key = keyOf(msg.ref);
+    const entry = { t: Date.now(), data: msg.data };
+    memCache.set(key, entry);
+    chrome.storage.local.set({ [AD_PREFIX + key]: entry }).catch(() => {});
+    return;
   }
   if (msg && msg.type === 'route') {
     getRoute(msg.location, msg.dest).then(

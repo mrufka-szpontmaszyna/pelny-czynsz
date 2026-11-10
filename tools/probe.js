@@ -1,6 +1,8 @@
 // Narzędzie deweloperskie: sprawdza parser na prawdziwych ogłoszeniach.
-// Użycie: deno run --allow-net tools/probe.js [otodom|olx] [url listy]
+// Użycie: deno run --allow-net --allow-run tools/probe.js [otodom|olx] [url listy]
+// (OLX blokuje zapytania z Deno, więc jego strony pobieramy przez curl)
 import '../src/parser.js';
+import '../src/olx.js';
 const PC = globalThis.PelnyCzynsz;
 const site = Deno.args[0] || 'otodom';
 const UA = { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', 'accept-language': 'pl-PL,pl;q=0.9' };
@@ -12,10 +14,14 @@ async function otodomAd(url) {
   if (!ad) return null;
   return { url, price: +ad.target.Price, adminRent: +ad.target.Rent || null, deposit: +ad.target.Deposit || null, description: ad.description };
 }
-async function olxAd(id) {
-  const d = (await (await fetch(`https://www.olx.pl/api/v1/offers/${id}/`, { headers: UA })).json()).data;
-  const p = k => d.params.find(x => x.key === k);
-  return { url: d.url, price: p('price')?.value?.value, adminRent: parseFloat(p('rent')?.value?.key) || null, description: d.description };
+async function curl(url) {
+  const out = await new Deno.Command('curl', { args: ['-sL', '--compressed', '-A', UA['user-agent'], url] }).output();
+  return new TextDecoder().decode(out.stdout);
+}
+async function olxAd(url) {
+  // API OLX (/api/v1/offers) jest zamknięte — dane ze strony ogłoszenia, jak we wtyczce
+  const d = globalThis.FourRentOlx.fromHtml(await curl(url));
+  return d ? { ...d, url } : null;
 }
 
 let ads = [];
@@ -26,9 +32,9 @@ if (site === 'otodom') {
   ads = (await Promise.all(links.slice(0, 36).map(u => otodomAd(u).catch(() => null)))).filter(Boolean);
 } else {
   const list = Deno.args[1] || 'https://www.olx.pl/nieruchomosci/mieszkania/wynajem/krakow/';
-  const html = await (await fetch(list, { headers: UA })).text();
-  const ids = [...new Set([...html.matchAll(/data-cy="l-card"[^>]*?id="(\d+)"|id="(\d+)"[^>]*?data-cy="l-card"/g)].map(m => m[1] || m[2]))];
-  ads = (await Promise.all(ids.slice(0, 36).map(id => olxAd(id).catch(() => null)))).filter(Boolean);
+  const html = await curl(list);
+  const urls = [...new Set([...html.matchAll(/href="(\/d\/oferta\/[^"?#]+)/g)].map(m => 'https://www.olx.pl' + m[1]))];
+  for (const u of urls.slice(0, 20)) { const ad = await olxAd(u).catch(() => null); if (ad) ads.push(ad); }
 }
 
 for (const ad of ads) {

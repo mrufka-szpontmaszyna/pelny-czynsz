@@ -42,15 +42,43 @@
   }
   function keyOf(ref) { return ref.site + ':' + (ref.id || cleanUrl(ref.url)); }
 
-  function getState(ref) {
+  // Stan ogłoszenia; dane pobieramy dopiero na żądanie (ensureLoaded) — np. gdy plakietka jest blisko ekranu
+  function getState(ref, lazy) {
     const key = keyOf(ref);
     let st = states.get(key);
     if (!st) {
-      st = { key, ref, status: 'loading', listeners: new Set(), overrides: {} };
+      st = { key, ref, status: 'idle', listeners: new Set(), overrides: {} };
       states.set(key, st);
-      load(st);
+    } else if (!st.ref.url && ref.url) {
+      st.ref = ref;
     }
+    if (!lazy) ensureLoaded(st);
     return st;
+  }
+  function ensureLoaded(st) {
+    if (st.status !== 'idle') return;
+    st.status = 'loading';
+    load(st);
+  }
+
+  // Awaryjnie: strona ogłoszenia OLX pobrana z karty OLX (ta sama domena), po 2 naraz
+  const pageQueue = [];
+  let pageActive = 0;
+  function fetchInPage(url) {
+    return new Promise((resolve, reject) => {
+      pageQueue.push({ url, resolve, reject });
+      pumpPage();
+    });
+  }
+  function pumpPage() {
+    while (pageActive < 2 && pageQueue.length) {
+      const job = pageQueue.shift();
+      pageActive++;
+      fetch(job.url, { credentials: 'include' })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(job.resolve, job.reject)
+        .finally(() => { pageActive--; pumpPage(); });
+    }
   }
 
   async function load(st) {
@@ -61,15 +89,38 @@
         chrome.storage.local.get(ovKey),
       ]);
       st.overrides = ov[ovKey] || {};
-      if (!resp || !resp.ok) throw new Error(resp ? resp.error : 'brak odpowiedzi');
-      st.data = resp.data;
-      st.analysis = PC.analyze(resp.data);
+      let data = resp && resp.ok ? resp.data : null;
+      if (!data && resp && resp.error === 'FETCH_IN_PAGE' && SITE === 'olx' && st.ref.url) {
+        const html = await fetchInPage(st.ref.url);
+        data = globalThis.FourRentOlx.fromHtml(html);
+        if (!data) throw new Error('nie udało się odczytać strony ogłoszenia');
+        if (data.price > 40000) throw new Error('NOT_RENTAL');
+        chrome.runtime.sendMessage({ type: 'putAd', ref: st.ref, data });
+      }
+      if (!data) throw new Error(resp ? resp.error : 'brak odpowiedzi');
+      st.data = data;
+      st.analysis = PC.analyze(data);
       st.status = 'ok';
     } catch (e) {
       st.status = 'error';
       st.error = String(e && e.message || e);
     }
     notify(st);
+  }
+
+  // Plakietki na liście ładują dane dopiero, gdy są blisko ekranu (strony OLX ważą ~2 MB)
+  const nearObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const en of entries) {
+      if (!en.isIntersecting) continue;
+      nearObserver.unobserve(en.target);
+      const st = en.target.__fourrentState;
+      if (st) ensureLoaded(st);
+    }
+  }, { rootMargin: '700px 0px' }) : null;
+  function loadWhenNear(host, st) {
+    if (!nearObserver) { ensureLoaded(st); return; }
+    host.__fourrentState = st;
+    nearObserver.observe(host);
   }
 
   function notify(st) {
@@ -300,7 +351,7 @@
 
   // ---------- Plakietka na liście ----------
   function makeBadge(ref) {
-    const st = getState(ref);
+    const st = getState(ref, true); // dane dopiero, gdy plakietka będzie blisko ekranu
     const { host, root } = shadowHost('fourrent-badge', { 'data-pc-key': st.key });
     const badge = el('button', { type: 'button', class: 'pc-badge pc-loading', text: 'liczę pełny koszt…' });
     root.append(badge);
@@ -309,7 +360,7 @@
       // odpinamy się dopiero, gdy plakietka była na stronie i z niej zniknęła
       if (host.isConnected) wasConnected = true;
       else if (wasConnected) { st.listeners.delete(update); return; }
-      if (st.status === 'loading') return;
+      if (st.status === 'loading' || st.status === 'idle') return;
       if (st.status === 'error' && st.error === 'NOT_RENTAL') { host.remove(); st.listeners.delete(update); return; }
       if (st.status === 'error') {
         badge.className = 'pc-badge pc-error';
@@ -345,9 +396,11 @@
     };
     st.listeners.add(update);
     update();
+    loadWhenNear(host, st);
     badge.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
+      ensureLoaded(st);
       if (openPop && openPop.badge === host) closePop();
       else if (st.status === 'ok') showPop(host, st);
     });
@@ -523,13 +576,20 @@
       let ref = refFromHref(a.getAttribute('href'));
       if (!ref) {
         if (!/^\d+$/.test(card.id || '')) return;
-        ref = { site: 'olx', id: card.id };
+        // adres strony ogłoszenia jest potrzebny — dane czytamy z niej (API OLX jest zamknięte)
+        ref = { site: 'olx', id: card.id, url: new URL(a.getAttribute('href'), location.href).href.split('?')[0] };
       }
       placeBadge(priceEl.parentElement, ref, b => priceEl.after(b));
     });
     const pc = document.querySelector('[data-testid="ad-price-container"]');
     if (pc && /\/d\/oferta\//.test(location.pathname)) {
-      mountPanel(pc, { site: 'olx', url: location.origin + location.pathname });
+      // numer ogłoszenia (sku) z danych strony — ten sam klucz co plakietka na liście
+      let id = null;
+      for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+        const m = s.textContent.match(/"sku"\s*:\s*"(\d+)"/);
+        if (m) { id = m[1]; break; }
+      }
+      mountPanel(pc, id ? { site: 'olx', id, url: location.origin + location.pathname } : { site: 'olx', url: location.origin + location.pathname });
     }
   }
 

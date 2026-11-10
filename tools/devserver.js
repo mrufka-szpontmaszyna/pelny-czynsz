@@ -38,8 +38,8 @@ var __fakeLocation = { hostname: __realUrl.hostname, href: __realUrl.href, pathn
 `;
 
 function harness() {
-  return '(function(){\n' + SHIM +
-    '(function(fetch){\n' + read('src/background.js') + '\n})(__proxyFetch);\n' +
+  return '(function(){\n' + SHIM + read('src/olx.js') + '\n' +
+    '(function(fetch, importScripts){\n' + read('src/background.js') + '\n})(__proxyFetch, function () {});\n' +
     read('src/parser.js') + '\n' + read('src/styles.js') + '\n' +
     '(function(location){\n' + read('src/content.js') + '\n})(__fakeLocation);\n' +
     'var __st=document.createElement("style");__st.textContent=' + JSON.stringify(read('src/content.css')) + ';document.head.append(__st);\n})();';

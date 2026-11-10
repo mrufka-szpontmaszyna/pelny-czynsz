@@ -40,7 +40,7 @@ Jest też **🚩 czerwona flaga przy prowizji biura** (gdy opis mówi, że biuro
 
 ## Jak to działa
 
-- Dane ogłoszenia (cena, pole „czynsz”, kaucja, opis) wtyczka pobiera w tle: z Otodom z danych strony, z OLX z ich API. Pobrane ogłoszenia pamięta przez 6 godzin.
+- Dane ogłoszenia (cena, pole „czynsz”, kaucja, opis) wtyczka czyta ze strony ogłoszenia (Otodom: dane Next.js, OLX: `__PRERENDERED_STATE__` — publiczne API OLX jest zamknięte od listopada 2026). Plakietki na liście pobierają dane dopiero, gdy ogłoszenie jest blisko ekranu. Pobrane ogłoszenia wtyczka pamięta przez 6 godzin.
 - Opis analizuje `src/parser.js` — rozpoznaje kwoty („250 zł”, „1 100 PLN”, „150-200 zł”) i dopasowuje je do kategorii po słowach obok („Prąd: 200 zł”, „300 zł – miejsce postojowe”, „możliwość wynajęcia garażu za 250 zł”…).
 - Wszystko działa bez kont, kluczy i bez AI. Poza Otodom/OLX wtyczka łączy się tylko z planerem tras Transitous (wysyła wyłącznie współrzędne mieszkania i celu, żeby policzyć dojazd).
 
@@ -63,6 +63,7 @@ Analiza tekstu to heurystyka — przy nietypowych opisach może się pomylić. D
 - `src/content.js` — plakietki, okienko, ramka, mapa (w Shadow DOM, odporne na style strony),
 - `src/styles.js` — style interfejsu, `src/content.css` — tylko opakowania elementów,
 - `src/background.js` — pobieranie danych ogłoszeń (pomija ogłoszenia sprzedaży) i tras (Transitous),
+- `src/olx.js` — odczyt ogłoszenia OLX z HTML strony,
 - `rules.json` — nagłówek User-Agent dla Transitous,
 - `src/mainworld.js` — na mapie Otodom zapisuje na pinezkach prawdziwy adres ogłoszenia,
 - `options.html` / `options.js` — ustawienia,
