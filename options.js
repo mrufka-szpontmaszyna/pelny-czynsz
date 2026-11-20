@@ -1,4 +1,4 @@
-// 4Rent — strona ustawień
+// 4Rent: strona ustawień
 (async function () {
   'use strict';
   const PC = globalThis.PelnyCzynsz;
@@ -65,7 +65,7 @@
   $('commuteName').value = cm.name || '';
   $('commuteAddr').value = cm.address || '';
   $('commuteTime').value = cm.time || '09:00';
-  const showDest = () => { $('commuteMsg').textContent = `Cel: ${cm.name || '—'} — ${cm.address || ''} (${(+cm.lat).toFixed(5)}, ${(+cm.lon).toFixed(5)}), przyjazd na ${cm.time} w dzień roboczy.`; };
+  const showDest = () => { $('commuteMsg').textContent = `Cel: ${cm.name || '?'}: ${cm.address || ''} (${(+cm.lat).toFixed(5)}, ${(+cm.lon).toFixed(5)}), przyjazd na ${cm.time} w dzień roboczy.`; };
   showDest();
   $('commuteOn').addEventListener('change', () => { cm.enabled = $('commuteOn').checked; save(); });
   $('commuteName').addEventListener('input', () => { cm.name = $('commuteName').value.trim(); save(); showDest(); });

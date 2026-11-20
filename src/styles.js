@@ -1,4 +1,4 @@
-// 4Rent — style interfejsu. Wstawiane do Shadow DOM każdego elementu wtyczki,
+// 4Rent: style interfejsu. Wstawiane do Shadow DOM każdego elementu wtyczki,
 // więc style strony (i innych wtyczek) nie mają na nie wpływu.
 globalThis.FourRentCSS = `
 :host {

@@ -1,6 +1,6 @@
-// 4Rent — pobieranie danych ogłoszeń (w tle, z pamięcią podręczną).
+// 4Rent: pobieranie danych ogłoszeń (w tle, z pamięcią podręczną).
 'use strict';
-importScripts('olx.js'); // FourRentOlx.fromHtml — odczyt ogłoszenia OLX z HTML
+importScripts('olx.js'); // FourRentOlx.fromHtml, odczyt ogłoszenia OLX z HTML
 const FETCH_IN_PAGE = 'FETCH_IN_PAGE';
 
 const TTL_MS = 6 * 60 * 60 * 1000; // 6 godzin
@@ -53,7 +53,7 @@ async function getAd(ref) {
   const p = runQueued(() => (ref.site === 'otodom' ? fetchOtodom(ref.url) : fetchOlx(ref))).then(async data => {
     const entry = { t: Date.now(), data };
     memCache.set(key, entry);
-    try { await chrome.storage.local.set({ [AD_PREFIX + key]: entry }); } catch (e) { /* pełna pamięć — trudno */ }
+    try { await chrome.storage.local.set({ [AD_PREFIX + key]: entry }); } catch (e) { /* pełna pamięć, trudno */ }
     return data;
   }).finally(() => inflight.delete(key));
   inflight.set(key, p);
@@ -76,7 +76,7 @@ async function fetchOtodom(url) {
   const ch = Object.fromEntries((ad.characteristics || []).map(c => [c.key, c.value]));
   const num = v => (v == null || v === '' ? null : parseFloat(v));
   const price = num(t.Price) ?? num(ch.price);
-  // tylko wynajem — ogłoszenia sprzedaży wtyczka pomija
+  // tylko wynajem, ogłoszenia sprzedaży wtyczka pomija
   if ((t.OfferType && t.OfferType !== 'wynajem') || price > MAX_RENT) throw new Error(NOT_RENTAL);
   const loc = ad.location || {};
   const co = loc.coordinates || {};
@@ -185,7 +185,7 @@ function summarize(it) {
   };
 }
 
-// „Najłatwiejsza” trasa: mało przesiadek i chodzenia; przy remisie — odjazd jak najpóźniej
+// „Najłatwiejsza” trasa: mało przesiadek i chodzenia; przy remisie, odjazd jak najpóźniej
 function pickEasiest(itins, deadline) {
   const ok = itins.filter(it => !deadline || new Date(it.endTime) <= deadline);
   const pool = ok.length ? ok : itins;
@@ -249,7 +249,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
   if (msg && msg.type === 'putAd' && msg.ref && msg.data) {
-    // dane OLX pobrane przez content script — zapamiętujemy jak własne
+    // dane OLX pobrane przez content script, zapamiętujemy jak własne
     const key = keyOf(msg.ref);
     const entry = { t: Date.now(), data: msg.data };
     memCache.set(key, entry);

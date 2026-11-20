@@ -19,7 +19,7 @@ async function curl(url) {
   return new TextDecoder().decode(out.stdout);
 }
 async function olxAd(url) {
-  // API OLX (/api/v1/offers) jest zamknięte — dane ze strony ogłoszenia, jak we wtyczce
+  // API OLX (/api/v1/offers) jest zamknięte, dane ze strony ogłoszenia, jak we wtyczce
   const d = globalThis.FourRentOlx.fromHtml(await curl(url));
   return d ? { ...d, url } : null;
 }

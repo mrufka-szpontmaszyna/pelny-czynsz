@@ -1,4 +1,4 @@
-// 4Rent — analiza opisu ogłoszenia.
+// 4Rent: analiza opisu ogłoszenia.
 // Czysty JavaScript bez zależności: działa w content scripcie i w testach (Deno).
 (function (root) {
   'use strict';
@@ -50,6 +50,15 @@
     'giu'
   );
 
+  // liczba bez waluty, za którą nie stoi jednostka ani dalsze cyfry („52 m2”, „3 piętro”, „50%”, „2015 r.”)
+  const LOOSE_RE = new RegExp(
+    '(?<![\\d.,\\p{L}])(' + NUM + ')(?![\\d.,]*\\d)(?![\\p{L}\\-])(?!\\s*(?:zł|zl|złotych|pln|,-|m2|m²|mkw|m(?!\\p{L})|%|r\\.|rok|km|min|os(?:ob|\\.|(?!\\p{L}))|pok|piętr|pietr|szt|lat|cm|kg|kwh|kw|mwh|gj|wh|co2|°|stopni|h(?!\\p{L})|godz|dni|tys|k(?!\\p{L})|\\/|x(?!\\p{L})))',
+    'giu'
+  );
+  // przed liczbą: etykieta zakończona dwukropkiem albo myślnikiem (+ ewentualnie „ok.”, „około”);
+  // bez „=”, bo tak zapisuje się wskaźniki ze świadectwa energetycznego („EU=103,6 kWh/(m2*rok)”)
+  const LOOSE_LABEL_TAIL = /[:\-–—]\s*(?:ok\.?|około|ca\.?|~|średnio|aktualnie)?\s*$/iu;
+
   function parseNum(s) {
     s = s.replace(/[  ]/g, '');
     if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) s = s.replace(/\./g, '');
@@ -74,7 +83,7 @@
   const COVERED_RE = /w cenie|wliczon|zawart|gratis|bez dodatkow\p{L}* opłat|w czynszu|bezpłatn|darmow|w ramach (?:czynszu|najmu|ceny)/iu;
   const ALL_INCLUSIVE_RE = /z opłatami|ze wszystkimi opłatami|(?:wraz )?z mediami|z czynszem i mediami|wszystkie opłaty (?:są )?(?:w cenie|wliczone)|opłaty (?:są )?(?:w cenie|wliczone)|wliczone (?:wszystkie )?opłaty|all inclusive|łącznie z (?:opłatami|mediami)|media (?:są )?(?:w cenie|wliczone)|w cenie (?:są )?(?:wszystkie )?(?:opłaty|media)|cena zawiera (?:wszystkie )?(?:opłaty|media)/iu;
   const EXTRA_RE = /(?<!\p{L})(?:dodatkow|zaliczk|wg\.?|według|zuży|licznik|osobn|oddzieln|płatn|we własnym zakresie|rozlicz|indywidualn|na koszt najemcy)/iu;
-  // „+ prąd”, „plus zaliczki za gaz” — plus tuż PRZED nazwą opłaty (nie „ogrzewanie podłogowe + prysznic”)
+  // „+ prąd”, „plus zaliczki za gaz”, plus tuż PRZED nazwą opłaty (nie „ogrzewanie podłogowe + prysznic”)
   const PLUS_BEFORE_RE = /(?:\+|(?<!\p{L})plus)\s*(?:\p{L}+\s+){0,3}$/iu;
   // ---------- Prowizja biura (czerwona flaga) ----------
   const COMMISSION_RE = /prowizj|prowizyjn|(?:pobier\p{L}*|pobieramy)\s+(?:\p{L}+\s+){0,3}wynagrodzeni|wynagrodzeni\p{L}*\s+(?:dla\s+)?(?:biura|agencji|pośrednik|w formie prowizji)|opłat\p{L}*\s+(?:dla\s+)?(?:biura|agencyjn|pośrednik)|commission|agency\s+fee|broker\s+fee|courtage/iu;
@@ -92,7 +101,7 @@
     '0\\s*%\\s*commission',
     'commission[\\s-]*free',
     'without\\s+(?:\\p{L}+\\s+)?commission',
-    'commission\\s*[:\\-–]?\\s*0(?!\\s*\\d)',
+    'commission\\s*[:\\-\\u2013]?\\s*0(?!\\s*\\d)',
   ].join('|'), 'iu');
 
   function detectCommission(text, title, oneTime) {
@@ -102,11 +111,11 @@
     for (const s of sentences) {
       if (!COMMISSION_RE.test(s)) continue;
       if (NO_COMMISSION_RE.test(s)) { negated = true; continue; }
-      positive.push(s.trim().replace(/^[-–•*+✓\s]+/, '').slice(0, 180));
+      positive.push(s.trim().replace(/^[\-–—•*+✓\s]+/, '').slice(0, 180));
     }
     const fee = (oneTime || []).find(o => o.kind === 'onetime' && /prowizj|prowizyjn/i.test(o.snippet) && o.amount > 0);
     const flag = positive.length > 0 || !!fee;
-    // „PROMOCJA! Bez prowizji” w tytule, a w opisie formułka „biuro pobiera prowizję” — sprzeczne informacje
+    // „PROMOCJA! Bez prowizji” w tytule, a w opisie formułka „biuro pobiera prowizję”, sprzeczne informacje
     const conflict = flag && negated && !fee;
     return { flag, conflict, noCommission: !flag && negated, amount: fee ? fee.amount : null, snippets: positive.slice(0, 3) };
   }
@@ -221,6 +230,23 @@
       });
     }
 
+    // Kwoty bez waluty, ale tuż po wyraźnej etykiecie opłaty: „Czynsz administracyjny: 835 (wraz z zal. na wodę)”.
+    // Liczba musi stać zaraz po „etykieta:” / „etykieta -”, a za nią nie może być jednostki (m2, %, piętro…).
+    LOOSE_RE.lastIndex = 0;
+    while ((m = LOOSE_RE.exec(text))) {
+      const start = m.index, end = m.index + m[1].length;
+      if (amounts.some(a => start < a.end && end > a.start)) continue;
+      const v = parseNum(m[1]);
+      if (!(v >= 20 && v <= 20000)) continue;
+      const lineStart = lastBoundary(stripped, start, SENTENCE_SEP);
+      const before = stripped.slice(Math.max(lineStart, start - 60), start);
+      if (!LOOSE_LABEL_TAIL.test(before)) continue;
+      const kws = findKeywords(before).filter(k => k.cat !== 'base');
+      if (!kws.length || !isStrongTail(before.slice(kws[kws.length - 1].end))) continue;
+      amounts.push({ start, end, value: v, range: null, loose: true });
+    }
+    amounts.sort((x, y) => x.start - y.start);
+
     const PR = P && R ? P + R : null;
     const valid = (cand, amt) => {
       if (cand.cat === 'base') return !P || Math.abs(amt - P) / P <= 0.15 || (PR && Math.abs(amt - PR) / PR <= 0.02);
@@ -230,7 +256,7 @@
     const kwIn = (from, to) => keywords.filter(k => k.start >= from && k.end <= to);
 
     const found = [];
-    const subtotals = []; // „w sumie ok 1000 zł”, „Razem media 960 zł” — sumy opłat (bez najmu)
+    const subtotals = []; // „w sumie ok 1000 zł”, „Razem media 960 zł”, sumy opłat (bez najmu)
     const unknown = [];
 
     amounts.forEach((am, i) => {
@@ -238,11 +264,11 @@
       const nextStart = i < amounts.length - 1 ? amounts[i + 1].start : text.length;
       let bStart = Math.max(prevEnd, lastBoundary(stripped, am.start), am.start - 90);
       if (!kwIn(bStart, am.start).length) {
-        // „prąd według zużycia, ok. 180 zł” — etykieta przed przecinkiem
+        // „prąd według zużycia, ok. 180 zł”, etykieta przed przecinkiem
         bStart = Math.max(prevEnd, lastBoundary(stripped, am.start, SENTENCE_SEP), am.start - 90);
       }
       let before = kwIn(bStart, am.start);
-      // kwota wewnątrz nawiasu: „+ prąd (całość około 2600 zł)” — słowa z tego nawiasu też się liczą
+      // kwota wewnątrz nawiasu: „+ prąd (całość około 2600 zł)”, słowa z tego nawiasu też się liczą
       const openIdx = text.lastIndexOf('(', am.start);
       if (openIdx >= bStart && openIdx > text.lastIndexOf(')', am.start)) {
         const closeIdx = text.indexOf(')', am.start);
@@ -254,7 +280,7 @@
 
       const afterLimit = Math.min(nextStart, am.end + 110);
       const afterText = text.slice(am.end, afterLimit);
-      // okno „mocne” po kwocie: „300 zł – miejsce postojowe”
+      // okno „mocne” po kwocie: „300 zł - miejsce postojowe”
       let aStrong = [];
       const lead = afterText.match(AFTER_STRONG_LEAD);
       let strongWinStart = null, strongWinEnd = null;
@@ -285,7 +311,7 @@
         ? findKeywords(parenM[1]).map(k => ({ ...k, start: k.start + am.end + parenM[0].indexOf('(') + 1, end: k.end + am.end + parenM[0].indexOf('(') + 1 }))
         : [];
 
-      // „Razem media … 960 zł” — suma częściowa (mniejsza niż najem) wcześniej wypisanych pozycji: pomijamy
+      // „Razem media … 960 zł”, suma częściowa (mniejsza niż najem) wcześniej wypisanych pozycji: pomijamy
       if (P && amt < P * 0.9 && before.some(k => k.cat === 'total')) {
         subtotals.push({ amount: amt, start: am.start, snippet: snippetOf(text, am.start, am.end) });
         return;
@@ -297,13 +323,13 @@
         // a) mocne przed: „Prąd: 200 zł”
         const lb = before.filter(c => tierOk(c) && valid(c, amt)).find(c => isStrongTail(stripped.slice(c.end, am.start)));
         if (lb) { label = lb; how = 'before'; break; }
-        // b) mocne po: „200 zł – prąd”
+        // b) mocne po: „200 zł - prąd”
         const as = pick(aStrong.filter(tierOk), false, 1);
         if (as) { label = as; how = 'after'; break; }
         // b2) nawias po kwocie: „480 zł (media)”
         const ap = pick(aParen.filter(tierOk), false, 1);
         if (ap) { label = ap; how = 'after'; break; }
-        // c) słabe przed — pierwsze słowo kluczowe w fragmencie
+        // c) słabe przed, pierwsze słowo kluczowe w fragmencie
         const bw = pick(before.filter(tierOk), false, 1);
         if (bw) { label = bw; how = 'before'; break; }
         // d) słabe po
@@ -317,6 +343,7 @@
       const snippet = snippetOf(text, am.start, am.end);
 
       if (!label) {
+        if (am.loose) return; // liczba bez waluty bez etykiety: nic nie wiemy, pomijamy
         const isBaseLike = (P && Math.abs(amt - P) / P <= 0.02) || (PR && Math.abs(amt - PR) / PR <= 0.02);
         const isRentLike = R && Math.abs(amt - R) <= 1;
         const isDepositLike = D && Math.abs(amt - D) <= 1;
@@ -330,7 +357,7 @@
       if (cat === 'czynsz') cat = P && Math.abs(amt - P) / P <= 0.15 ? 'base' : 'admin';
       if (cat === 'base') return;
       if (amt < 1 && cat !== 'deposit') return;
-      // dodatek droższy niż sam najem to raczej suma („z miejscem postojowym – 3280 zł”)
+      // dodatek droższy niż sam najem to raczej suma („z miejscem postojowym - 3280 zł”)
       if (P && amt >= P * 0.9 && !['deposit', 'onetime', 'total'].includes(cat)) {
         unknown.push({ amount: amt, snippet });
         return;
@@ -341,7 +368,7 @@
       if (how === 'before') coverText += text.slice(label.end, am.start);
       else {
         const tail = text.slice(label.end, nextStart);
-        // „650 zł czynsz administracyjny + zaliczki za gaz i prąd” — po „+”/„plus”/„dodatkowo” to są osobne opłaty
+        // „650 zł czynsz administracyjny + zaliczki za gaz i prąd”, po „+”/„plus”/„dodatkowo” to są osobne opłaty
         const cut = tail.search(/[\n;•+]|\.\s+(?=\p{Lu})|(?<!\p{L})(?:plus|dodatkow|osobn|oddzieln|płatn|poza)/iu);
         coverText += cut === -1 ? tail : tail.slice(0, cut);
       }
@@ -363,7 +390,7 @@
       found.push({
         cat, amount: yearly ? amt / 12 : amt, range: am.range, approx, perPerson, yearly,
         optional: CATEGORIES[cat] && CATEGORIES[cat].addon ? !mandatory : optional && !mandatory,
-        covers, snippet, pos: am.start,
+        covers, snippet, pos: am.start, loose: !!am.loose,
       });
     });
 
@@ -384,7 +411,7 @@
       if (!hasAmount && COVERED_RE.test(seg)) covered.add(cat);
       else {
         mentioned.add(cat);
-        // „+ zaliczki za gaz i prąd”, „prąd wg zużycia” — płatne dodatkowo, ale bez kwoty
+        // „+ zaliczki za gaz i prąd”, „prąd wg zużycia”, płatne dodatkowo, ale bez kwoty
         if (!hasAmount && (EXTRA_RE.test(text.slice(segStart, segEnd)) || PLUS_BEFORE_RE.test(text.slice(Math.max(0, k.start - 30), k.start)))) extra.add(cat);
       }
     }
@@ -392,7 +419,7 @@
     const allInclusive = !!allMatch;
     if (allInclusive) {
       ['admin', 'media', 'prad', 'gaz', 'woda', 'ogrzewanie', 'smieci'].forEach(c => covered.add(c));
-      // „z mediami (prąd gaz woda) i internetem” — wszystko z tego zdania też jest w cenie
+      // „z mediami (prąd gaz woda) i internetem”, wszystko z tego zdania też jest w cenie
       const sStart = lastBoundary(text, allMatch.index, SENTENCE_SEP);
       let sEnd = text.slice(allMatch.index).search(/\n|\.\s+(?=\p{Lu})/u);
       sEnd = sEnd === -1 ? text.length : allMatch.index + sEnd;
@@ -447,18 +474,18 @@
         if (statedTotal == null) statedTotal = f.amount;
         continue;
       }
-      const it = { cat: f.cat, amount: f.amount, approx: f.approx, range: f.range, perPerson: f.perPerson, yearly: f.yearly, optional: f.optional, covers: f.covers, snippet: f.snippet, source: 'desc' };
+      const it = { cat: f.cat, amount: f.amount, approx: f.approx, range: f.range, perPerson: f.perPerson, yearly: f.yearly, optional: f.optional, covers: f.covers, snippet: f.snippet, source: 'desc', noCurrency: f.loose || undefined };
 
       if (useR && (f.cat === 'admin' || f.cat === 'media')) {
         const adminItem = items.find(x => x.cat === 'admin' && x.fromField);
-        // „media” bliskie polu „czynsz” to ta sama opłata — chyba że opis osobno podaje czynsz administracyjny
+        // „media” bliskie polu „czynsz” to ta sama opłata, chyba że opis osobno podaje czynsz administracyjny
         const close = Math.abs(f.amount - R) <= Math.max(R * 0.25, 30) && !(f.cat === 'media' && found.some(x => x.cat === 'admin'));
         if (f.cat === 'admin' || close) {
           // to ta sama opłata co pole „czynsz”
           adminItem.covers = [...new Set([...adminItem.covers, ...f.covers])];
           if (Math.abs(f.amount - R) > 1) {
             if (f.cat === 'admin' && adminItem.source === 'field') {
-              // opis wprost podaje czynsz administracyjny — zwykle jest aktualniejszy niż pole
+              // opis wprost podaje czynsz administracyjny, zwykle jest aktualniejszy niż pole
               adminItem.amount = f.amount;
               adminItem.approx = f.approx;
               adminItem.source = 'desc';
@@ -471,7 +498,7 @@
           continue;
         }
         if (f.covers.includes('admin')) {
-          // np. „opłaty 1300 zł (w tym czynsz administracyjny)” — opis zawiera więcej niż pole
+          // np. „opłaty 1300 zł (w tym czynsz administracyjny)”, opis zawiera więcej niż pole
           adminItem.amount = f.amount;
           adminItem.source = 'desc';
           adminItem.snippet = f.snippet;
@@ -488,7 +515,7 @@
       if (Math.abs(dep.amount - D) > 1) { dep.amount = D; dep.snippet = 'Kwota kaucji z pól ogłoszenia'; }
     }
 
-    // ogólne „media” o tej samej kwocie co konkretna pozycja to duplikat („480 zł (media)” + „480 zł – opłaty za prąd”)
+    // ogólne „media” o tej samej kwocie co konkretna pozycja to duplikat („480 zł (media)” + „480 zł - opłaty za prąd”)
     for (let i = items.length - 1; i >= 0; i--) {
       const it = items[i];
       if (it.cat === 'media' && items.some(x => x !== it && Math.abs(x.amount - it.amount) <= 1)) items.splice(i, 1);
@@ -509,7 +536,7 @@
     }
 
     // pokrycia z pozycji („w tym prąd”) też liczą się jako „w cenie”
-    // Suma opłat podana w ogłoszeniu („czynsz 550 zł + gaz, woda i prąd wg zużycia – w sumie ok 1000 zł”):
+    // Suma opłat podana w ogłoszeniu („czynsz 550 zł + gaz, woda i prąd wg zużycia - w sumie ok 1000 zł”):
     // jeśli rozpisane kwoty dają mniej, różnica to opłaty bez kwot (gaz, woda, prąd…)
     if (subtotals.length && !allInclusive) {
       const S = subtotals[0].amount;
@@ -544,6 +571,8 @@
       extraNoAmount: [...extra].filter(c => !items.find(x => x.cat === c) && !covered.has(c) && !['admin', 'media', 'parking', 'komorka', 'sprzatanie'].includes(c)),
       unknownAmounts: unknown,
       notes,
+      // kwoty znalezione bez „zł” (do kontroli w narzędziach deweloperskich)
+      noCurrencyAmounts: found.filter(f => f.loose).map(f => ({ cat: f.cat, amount: f.amount, snippet: f.snippet })),
       text,
     };
   }
@@ -552,7 +581,7 @@
   const DEFAULT_SETTINGS = {
     persons: 1,
     mapPins: true, // pełna kwota na pinezkach mapy Otodom
-    limit: 0, // miesięczny limit w zł (0 = wyłączony); powyżej — kolor czerwony
+    limit: 0, // miesięczny limit w zł (0 = wyłączony); powyżej, kolor czerwony
     commissionFlag: true, // czerwona flaga, gdy biuro pobiera prowizję
     // dojazd komunikacją miejską (planer Transitous); przyjazd na podaną godzinę w dzień roboczy
     commute: { enabled: true, name: 'DSW Ideis', address: 'Strzegomska 55, Wrocław', lat: 51.1142247, lon: 16.9922026, time: '09:00' },
@@ -588,7 +617,7 @@
 
   /**
    * Buduje listę wierszy i sumę.
-   * overrides: { [rowId]: true|false } — ręczne zaznaczenia użytkownika dla danego ogłoszenia
+   * overrides: { [rowId]: true|false }, ręczne zaznaczenia użytkownika dla danego ogłoszenia
    */
   function compute(result, settingsIn, overrides) {
     const settings = mergeSettings(settingsIn);
@@ -644,7 +673,7 @@
   }
 
   function fmt(n) {
-    if (n == null || !isFinite(n)) return '—';
+    if (n == null || !isFinite(n)) return '?';
     return Math.round(n).toLocaleString('pl-PL').replace(/ /g, ' ') + ' zł';
   }
 

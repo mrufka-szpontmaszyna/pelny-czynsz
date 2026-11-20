@@ -1,5 +1,5 @@
-// 4Rent — odczyt danych ogłoszenia OLX z HTML strony ogłoszenia.
-// (OLX zamknął publiczne API /api/v1/offers — od listopada 2026 zwraca 403.)
+// 4Rent: odczyt danych ogłoszenia OLX z HTML strony ogłoszenia.
+// (OLX zamknął publiczne API /api/v1/offers, od listopada 2026 zwraca 403.)
 // Używane w tle (background.js przez importScripts) i na stronie (content script).
 (function (root) {
   'use strict';

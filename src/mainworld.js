@@ -1,5 +1,5 @@
-// 4Rent — skrypt działający w „świecie strony” Otodom (MAIN world).
-// Pinezki na mapie mają w danych React prawdziwy adres ogłoszenia (slug) — zapisujemy go
+// 4Rent: skrypt działający w „świecie strony” Otodom (MAIN world).
+// Pinezki na mapie mają w danych React prawdziwy adres ogłoszenia (slug), zapisujemy go
 // w atrybucie data-fourrent-slug, żeby główna część wtyczki mogła go odczytać.
 (function () {
   'use strict';
@@ -13,7 +13,7 @@
           const ad = f.memoizedProps && f.memoizedProps.pin && f.memoizedProps.pin.ad;
           if (ad && ad.slug) { slug = String(ad.slug); tx = String(ad.transaction || ''); break; }
         }
-      } catch (e) { /* zmiana budowy strony — po prostu bez dopiski */ }
+      } catch (e) { /* zmiana budowy strony, po prostu bez dopiski */ }
       pin.setAttribute('data-fourrent-tx', tx);
       pin.setAttribute('data-fourrent-slug', slug);
     });

@@ -242,3 +242,26 @@ Deno.test('sprzeczne info o prowizji (tytuł „Bez prowizji”, opis „pobiera
   const c = analyze({ price: 3000, isHtml: false, title: 'PROMOCJA! Nowoczesne mieszkanie z klimatyzacją, Bez Prowizji', description: 'Hamilton May pobiera prowizję za wynajem tej nieruchomości, płatną w momencie podpisania umowy najmu.' }).commission;
   assertEq([c.flag, c.conflict], [true, true]);
 });
+
+Deno.test('kwota bez „zł” po etykiecie („Czynsz administracyjny: 835 (wraz z zal. na wodę)”)', () => {
+  const r = analyze({ price: 3500, isHtml: false, description: 'OPŁATY:\n- Czynsz najmu: 3 500 zł,\n- Miejsce parkingowe: 250 zł,\n- Czynsz administracyjny: 835 (wraz z zal. na wodę),\n- Prąd wg. zużycia: ok 200 zł,\n- Wymagana Kaucja.\nMieszkanie 52 m2, 3 piętro, 2 pokoje, rok budowy 2015, tel. 600 100 200.' });
+  assertEq(cats(r), { admin: 835, prad: 200, parking: 250 });
+  assertEq(r.items.find(i => i.cat === 'admin').covers, ['woda']);
+  assertEq(r.unknownAmounts, []);
+});
+
+Deno.test('liczby ze świadectwa energetycznego to nie opłaty', () => {
+  const r = analyze({ price: 2100, adminRent: 270, isHtml: false, description: 'Wskaźnik rocznego zapotrzebowania na energię użytkową - EU=103,6 kWh/(m2*rok)\nwskaźnik rocznego zapotrzebowania na energię końcową EK=131,53 kWh/(m2-rok)\nMedia: ok 740' });
+  assertEq(r.noCurrencyAmounts.map(x => [x.cat, x.amount]), [['media', 740]]);
+});
+
+Deno.test('myślniki w ogłoszeniach: „Prąd – 200 zł”, „Prowizja — 2000 zł”', () => {
+  const r = analyze({ price: 3000, isHtml: false, description: 'Prąd – 200 zł\nGaz — 50 zł\n– Biuro pobiera prowizję.' });
+  assertEq(cats(r), { prad: 200, gaz: 50 });
+  assertEq(r.commission.snippets[0], 'Biuro pobiera prowizję.');
+});
+
+Deno.test('„Commission – 0” to brak prowizji', () => {
+  const c = analyze({ price: 3000, isHtml: false, description: 'Commission – 0' }).commission;
+  assertEq([c.flag, c.noCommission], [false, true]);
+});

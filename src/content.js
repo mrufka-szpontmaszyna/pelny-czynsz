@@ -1,4 +1,4 @@
-// 4Rent — plakietki na listach i ramka na stronie ogłoszenia.
+// 4Rent: plakietki na listach i ramka na stronie ogłoszenia.
 (function () {
   'use strict';
   const PC = globalThis.PelnyCzynsz;
@@ -27,7 +27,7 @@
   }
   const fmt = PC.fmt;
 
-  // Element wtyczki z własnym Shadow DOM — style strony go nie dotykają
+  // Element wtyczki z własnym Shadow DOM, style strony go nie dotykają
   function shadowHost(tag, attrs) {
     const host = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) host.setAttribute(k, v);
@@ -42,7 +42,7 @@
   }
   function keyOf(ref) { return ref.site + ':' + (ref.id || cleanUrl(ref.url)); }
 
-  // Stan ogłoszenia; dane pobieramy dopiero na żądanie (ensureLoaded) — np. gdy plakietka jest blisko ekranu
+  // Stan ogłoszenia; dane pobieramy dopiero na żądanie (ensureLoaded), np. gdy plakietka jest blisko ekranu
   function getState(ref, lazy) {
     const key = keyOf(ref);
     let st = states.get(key);
@@ -190,7 +190,7 @@
     const d = R.data;
     const b = d.best;
     if (!b) {
-      box.append(el('div', { class: 'pc-route-main', text: d.walkOnlyMin != null ? `🚶 Pieszo ok. ${d.walkOnlyMin} min — blisko, komunikacja niepotrzebna` : 'Nie znaleziono połączenia komunikacją.' }));
+      box.append(el('div', { class: 'pc-route-main', text: d.walkOnlyMin != null ? `🚶 Pieszo ok. ${d.walkOnlyMin} min: blisko, komunikacja niepotrzebna` : 'Nie znaleziono połączenia komunikacją.' }));
     } else {
       box.append(el('div', { class: 'pc-route-main' },
         el('b', { text: `${b.durationMin} min` }), ' · ',
@@ -202,7 +202,7 @@
         const [ic, w] = modeOf(r.mode);
         steps.append(el('li', {},
           el('b', { text: `${ic} ${w} ${r.line}` }), r.headsign ? ` (kier. ${r.headsign})` : '',
-          ` — ${hhmm(r.depart)} z przyst. ${r.from} → ${r.to}, ${r.minutes} min`,
+          `: ${hhmm(r.depart)} z przyst. ${r.from} → ${r.to}, ${r.minutes} min`,
           i < b.rides.length - 1 ? el('span', { class: 'pc-route-warn', text: ' · przesiadka' }) : null));
       });
       if (b.walkFromLastMin) steps.append(el('li', { text: `🚶 ${b.walkFromLastMin} min pieszo na miejsce` }));
@@ -212,10 +212,10 @@
       if (d.walkOnlyMin != null && d.walkOnlyMin <= 25) box.append(el('div', { class: 'pc-route-alt', text: `🚶 Albo pieszo ok. ${d.walkOnlyMin} min` }));
     }
     const o = d.origin || {};
-    if (o.precision === 'street') box.append(el('div', { class: 'pc-route-note', text: `Dokładny adres nieznany — liczone od ulicy: ${o.label}.` }));
+    if (o.precision === 'street') box.append(el('div', { class: 'pc-route-note', text: `Dokładny adres nieznany, liczone od ulicy: ${o.label}.` }));
     else if (o.precision === 'approx') box.append(el('div', { class: 'pc-route-note', text: o.areaOnly
-      ? 'Lokalizacja przybliżona (ogłoszenie podaje tylko okolicę) — czas może się różnić.'
-      : `Lokalizacja przybliżona (±${o.radiusM} m) — czas może się różnić.` }));
+      ? 'Lokalizacja przybliżona (ogłoszenie podaje tylko okolicę), czas może się różnić.'
+      : `Lokalizacja przybliżona (±${o.radiusM} m), czas może się różnić.` }));
     const gmaps = `https://www.google.com/maps/dir/?api=1&origin=${o.lat},${o.lon}&destination=${encodeURIComponent(dest.address || `${dest.lat},${dest.lon}`)}&travelmode=transit`;
     box.append(el('div', { class: 'pc-route-links' },
       el('a', { href: gmaps, target: '_blank', rel: 'noopener', onclick: e => e.stopPropagation(), text: 'Google Maps ↗' }),
@@ -242,8 +242,8 @@
     if (cm) {
       box.append(el('div', { class: 'pc-flag-box' },
         el('b', { text: cm.conflict ? '🚩 Prowizja? Sprzeczne informacje' : '🚩 Red flag: biuro pobiera prowizję' }),
-        cm.conflict ? ' — ogłoszenie pisze „bez prowizji”, ale w opisie jest też inna informacja. Dopytaj biuro.'
-          : cm.amount ? ' — ' + fmt(cm.amount) + ' jednorazowo' : ' (kwota nie podana)',
+        cm.conflict ? ': ogłoszenie pisze „bez prowizji”, ale w opisie jest też inna informacja. Dopytaj biuro.'
+          : cm.amount ? ': ' + fmt(cm.amount) + ' jednorazowo' : ' (kwota nie podana)',
         cm.snippets[0] ? el('span', { class: 'pc-flag-quote', text: '„' + cm.snippets[0] + '”' }) : null
       ));
     }
@@ -297,8 +297,8 @@
     }
 
     if (a.unknownAmounts.length) {
-      const det = el('details', { class: 'pc-unknown' }, el('summary', { text: `Inne kwoty w opisie — nierozpoznane (${a.unknownAmounts.length})` }));
-      a.unknownAmounts.slice(0, 8).forEach(u => det.append(el('div', { class: 'pc-unknown-item' }, el('b', { text: fmt(u.amount) }), ' — ', u.snippet)));
+      const det = el('details', { class: 'pc-unknown' }, el('summary', { text: `Inne kwoty w opisie, nierozpoznane (${a.unknownAmounts.length})` }));
+      a.unknownAmounts.slice(0, 8).forEach(u => det.append(el('div', { class: 'pc-unknown-item' }, el('b', { text: fmt(u.amount) }), ': ', u.snippet)));
       box.append(det);
     }
 
@@ -306,7 +306,7 @@
     if (routeBox) box.append(routeBox);
 
     const foot = el('div', { class: 'pc-foot' },
-      el('span', { text: 'Wyliczone automatycznie z opisu — najedź na ⓘ, żeby zobaczyć źródło.' }),
+      el('span', { text: 'Wyliczone automatycznie z opisu. Najedź na ⓘ, żeby zobaczyć źródło.' }),
       el('span', { class: 'pc-links' },
         Object.keys(st.overrides).length ? el('a', { href: '#', onclick: e => { e.preventDefault(); e.stopPropagation(); resetOverrides(st); }, text: 'Przywróć' }) : null,
         el('a', { href: '#', onclick: e => { e.preventDefault(); e.stopPropagation(); chrome.runtime.sendMessage({ type: 'openOptions' }); }, text: 'Ustawienia' })
@@ -481,7 +481,7 @@
     return null;
   }
 
-  // Otodom: kod „ID4DsjV” z końca adresu jednoznacznie wskazuje ogłoszenie — to nasz klucz,
+  // Otodom: kod „ID4DsjV” z końca adresu jednoznacznie wskazuje ogłoszenie, to nasz klucz,
   // żeby lista, mapa i strona ogłoszenia dzieliły te same dane (bez względu na resztę adresu).
   function otodomRef(url) {
     const m = url.match(/[-/]ID([0-9a-zA-Z]+)\/?$/);
@@ -576,14 +576,14 @@
       let ref = refFromHref(a.getAttribute('href'));
       if (!ref) {
         if (!/^\d+$/.test(card.id || '')) return;
-        // adres strony ogłoszenia jest potrzebny — dane czytamy z niej (API OLX jest zamknięte)
+        // adres strony ogłoszenia jest potrzebny, dane czytamy z niej (API OLX jest zamknięte)
         ref = { site: 'olx', id: card.id, url: new URL(a.getAttribute('href'), location.href).href.split('?')[0] };
       }
       placeBadge(priceEl.parentElement, ref, b => priceEl.after(b));
     });
     const pc = document.querySelector('[data-testid="ad-price-container"]');
     if (pc && /\/d\/oferta\//.test(location.pathname)) {
-      // numer ogłoszenia (sku) z danych strony — ten sam klucz co plakietka na liście
+      // numer ogłoszenia (sku) z danych strony, ten sam klucz co plakietka na liście
       let id = null;
       for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
         const m = s.textContent.match(/"sku"\s*:\s*"(\d+)"/);
