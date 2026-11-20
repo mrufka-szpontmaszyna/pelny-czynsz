@@ -9,7 +9,7 @@ Wtyczka do Chrome, która na **Otodom** i **OLX** liczy realny miesięczny koszt
 - **Na mapie Otodom** każda pinezka z ceną dostaje małą zieloną dopiskę z pełną kwotą, a okienko po kliknięciu pinezki, plakietkę z rozpiską. (Dopiski na pinezkach można wyłączyć w ustawieniach.)
 - W rozpisce:
   - **opłaty stałe** z ogłoszenia (czynsz administracyjny, prąd, gaz…),
-  - **opcjonalne** dodatki (parking, komórka itp.) w osobnej sekcji, doliczasz je ptaszkiem,
+  - **opcjonalne** dodatki (parking, komórka itp.) w osobnej sekcji, doliczasz je ptaszkiem; parking wypisany na liście opłat („OPŁATY:”, „Koszty:”) bez „opcjonalnie” liczy się jako stała opłata,
   - **szacunki** dla opłat bez kwoty (np. „prąd wg zużycia” → 150 zł; kwoty ustawiasz sama),
   - co jest **w cenie** (np. „komórka lokatorska w cenie”),
   - **na start**: kaucja, prowizja i suma z pierwszym miesiącem,

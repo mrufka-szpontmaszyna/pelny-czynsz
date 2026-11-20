@@ -77,6 +77,38 @@
 
   const OPTIONAL_RE = /opcjonaln|możliwoś|mozliwos|na życzenie|do wyboru|jeśli|jeżeli|w razie potrzeby|można (?:wynająć|dokupić|dodatkowo|wykupić)|do dokupienia|do wynajęcia|dla chętnych|nieobowiązk|za dopłatą|istnieje możliwość|ewentualn/iu;
   const MANDATORY_RE = /obligatoryjn|obowiązk|wymaga|w pakiecie|należy doliczyć|nalezy doliczyc|w zestawie|razem z mieszkaniem/iu;
+  // nagłówek listy opłat: „OPŁATY:”, „Koszty miesięczne:”, „Cena:”, „Warunki najmu:”, „Podsumowanie kosztów:”
+  const COST_HEADER = '(?:opłaty|oplaty|koszty|koszt\\p{L}* miesięczn\\p{L}*|miesięczne opłaty|dodatkowe opłaty|opłaty miesięczne|cena|ceny|warunki najmu|warunki finansowe|oferta finansowa|podsumowanie kosztów|fees|costs)';
+  const COST_HEADER_LINE = new RegExp('^[\\s*•\\-#]*' + COST_HEADER + '\\s*(?:\\([^)]*\\))?\\s*:?\\s*$', 'iu');
+  const COST_HEADER_INLINE = new RegExp('(?<!\\p{L})' + COST_HEADER + '\\s*:', 'iu');
+
+  // Dodatek do wyboru: „Miejsce w hali: opcjonalnie, 350 PLN”, „300 zł (opcjonalnie / do ustalenia)”,
+  // „miejsce postojowe dodatkowo płatne: 300 zł”. Szukamy w całej linii przed kwotą i tuż za nią.
+  const ADDON_OPTIONAL_RE = new RegExp(OPTIONAL_RE.source + '|dodatkowo płatn|płatn\\p{L}* dodatkowo|za dodatkową opłatą|za dodatkowo|do ustalenia|na prośbę', 'iu');
+  function addonOptionalNear(text, am) {
+    const lineStart = lastBoundary(text, am.start, SENTENCE_SEP);
+    let after = text.slice(am.end, am.end + 50);
+    const cut = after.search(/\n|[;•]|\.\s+(?=\p{Lu})/u);
+    if (cut !== -1) after = after.slice(0, cut);
+    const before = text.slice(Math.max(lineStart, am.start - 120), am.start);
+    // tylko ostatnia pozycja listy w tej linii („… Czynsz: 950 zł Miejsce postojowe: opcjonalnie 300 zł”)
+    const lastItem = before.split(/\d\s*(?:zł|zl|pln)(?!\p{L})/iu).pop();
+    return ADDON_OPTIONAL_RE.test(lastItem + ' ' + after);
+  }
+
+  // Czy kwota stoi na liście opłat pod nagłówkiem? Wtedy parking/komórka z tej listy to stała opłata.
+  function inCostList(text, pos) {
+    const lineStart = text.lastIndexOf('\n', pos - 1) + 1;
+    if (COST_HEADER_INLINE.test(text.slice(lineStart, pos))) return true; // „OPŁATY: … miejsce postojowe 250 zł”
+    const lines = text.slice(0, lineStart).split('\n');
+    for (let i = lines.length - 1, n = 0; i >= 0 && n < 10; i--, n++) {
+      const l = lines[i].trim();
+      if (!l) continue;
+      if (COST_HEADER_LINE.test(l) || COST_HEADER_INLINE.test(l.slice(0, 40))) return true;
+      if (l.length > 160) return false; // dłuższy akapit prozy przerywa listę
+    }
+    return false;
+  }
   const PER_PERSON_RE = /(?:za|na|od|\/)\s*(?:os\.?|osob\p{L}*)(?!\p{L})|(?:za|na|od)\s*głow/iu;
   const YEARLY_RE = /^\s*(?:\/\s*rok|rocznie|na rok|za rok|w skali roku)/iu;
   const APPROX_RE = /ok\.?\s*$|około\s*$|~\s*$|ca\.?\s*$|średnio\s*$|szacunk|mniej więcej|zależ|wg\.?\s*zuży|według\s*zuży|zaliczk|maks|max|do\s*$/iu;
@@ -389,7 +421,10 @@
 
       found.push({
         cat, amount: yearly ? amt / 12 : amt, range: am.range, approx, perPerson, yearly,
-        optional: CATEGORIES[cat] && CATEGORIES[cat].addon ? !mandatory : optional && !mandatory,
+        // dodatki (parking, komórka…) są opcjonalne, chyba że stoją na liście opłat bez słowa „opcjonalnie” itp.
+        optional: CATEGORIES[cat] && CATEGORIES[cat].addon
+          ? !mandatory && (optional || addonOptionalNear(text, am) || !inCostList(text, am.start))
+          : optional && !mandatory,
         covers, snippet, pos: am.start, loose: !!am.loose,
       });
     });

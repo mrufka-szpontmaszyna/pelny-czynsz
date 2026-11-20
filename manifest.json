@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "4Rent: realne koszty mieszkań",
   "short_name": "4Rent",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Na Otodom i OLX liczy realny miesięczny koszt mieszkania (najem + czynsz + opłaty z opisu) i dojazd komunikacją na uczelnię.",
   "permissions": ["storage", "declarativeNetRequest"],
   "host_permissions": ["https://*.otodom.pl/*", "https://*.olx.pl/*", "https://api.transitous.org/*"],

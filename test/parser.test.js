@@ -265,3 +265,25 @@ Deno.test('„Commission – 0” to brak prowizji', () => {
   const c = analyze({ price: 3000, isHtml: false, description: 'Commission – 0' }).commission;
   assertEq([c.flag, c.noCommission], [false, true]);
 });
+
+Deno.test('parking z listy „OPŁATY:” jest obowiązkowy, opisany luźno lub „opcjonalnie” nie', () => {
+  const lista = analyze({ price: 3500, isHtml: false, description: 'Mieszkanie po remoncie, blisko tramwaju.\nOPŁATY:\n- Czynsz najmu: 3 500 zł,\n- Miejsce parkingowe: 250 zł,\n- Czynsz administracyjny: 835 (wraz z zal. na wodę),\n- Prąd wg. zużycia: ok 200 zł,\n- Wymagana Kaucja.' });
+  assertEq(opt(lista), []);
+  assertEq(compute(lista, { categories: { internet: { estimate: false } } }).total, 3500 + 250 + 835 + 200);
+  const inline = analyze({ price: 3400, isHtml: false, description: 'CENA: 3400 PLN – czynsz najmu 300 PLN - miejsce postojowe w parkingu podziemnym 1000 PLN – czynsz administracyjny' });
+  assertEq(opt(inline), []);
+  const luzno = analyze({ price: 3000, isHtml: false, description: 'W budynku jest garaż podziemny, miejsce postojowe 200 zł miesięcznie.\nCzynsz administracyjny: 600 zł' });
+  assertEq(opt(luzno), ['parking']);
+  const opcja = analyze({ price: 3000, isHtml: false, description: 'Koszty:\n- Czynsz administracyjny: 600 zł\n- Opcjonalnie miejsce postojowe: 200 zł' });
+  assertEq(opt(opcja), ['parking']);
+});
+
+Deno.test('parking na liście, ale „opcjonalnie” / „dodatkowo płatne” zostaje opcjonalny', () => {
+  for (const d of [
+    'KOSZTY:\nCzynsz administracyjny: 900 zł\nMiejsce postojowe w garażu podziemnym: 300 zł (opcjonalnie / do ustalenia)\nŁączny koszt miesięczny: ok. 4000 zł',
+    'Opłaty:\nKaucja zwrotna: 8 000 PLN\nMiejsce w hali garażowej: opcjonalnie, 350 PLN/mies.',
+    'Koszty:\n• Czynsz najmu 3500 zł .\n• Miejsce postojowe w garażu podziemnym dodatkowo płatne: 300 zł .',
+  ]) assertEq(opt(analyze({ price: 3500, isHtml: false, description: d })), ['parking'], d);
+  const obow = analyze({ price: 2200, isHtml: false, description: 'OPŁATY: Najem: 2200 zł + miejsce postojowe 250 zł (obligatoryjne) Czynsz: 950 zł Prąd: 200 zł' });
+  assertEq(opt(obow), []);
+});
